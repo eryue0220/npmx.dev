@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NewOperation } from '~/composables/useConnector'
+import type Modal from '~/components/Modal.client.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -86,7 +87,7 @@ async function handleDeprecate() {
   }
 }
 
-const dialogRef = ref<HTMLDialogElement>()
+const dialogRef = ref<InstanceType<typeof Modal> | undefined>()
 
 function open() {
   deprecateError.value = null

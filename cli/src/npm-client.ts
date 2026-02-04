@@ -456,7 +456,7 @@ export async function packageDeprecate(
   }
 
   const target = version ? `${pkg}@${version}` : pkg
-  const args = ['deprecate', target, reason]
+  const args = ['deprecate', target, reasonText]
 
   if (options?.dryRun) {
     args.push('--dry-run')
