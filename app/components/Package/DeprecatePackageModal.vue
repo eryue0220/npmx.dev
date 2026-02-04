@@ -43,9 +43,10 @@ async function handleDeprecate() {
       params.version = deprecateVersion.value.trim()
     }
 
+    const escapedMessage = message.replace(/"/g, '\\"')
     const command = params.version
-      ? `npm deprecate ${props.packageName}@${params.version} "${message}"`
-      : `npm deprecate ${props.packageName} "${message}"`
+      ? `npm deprecate ${props.packageName}@${params.version} "${escapedMessage}"`
+      : `npm deprecate ${props.packageName} "${escapedMessage}"`
 
     const operation = await addOperation({
       type: 'package:deprecate',
@@ -72,14 +73,14 @@ async function handleDeprecate() {
         close()
         connectorModal.open()
       } else {
-        deprecateError.value = completedOp.result?.stderr || t('deprecate.modal.failed')
+        deprecateError.value = completedOp.result?.stderr || t('common.try_again')
       }
     } else {
       close()
       connectorModal.open()
     }
   } catch (err) {
-    deprecateError.value = err instanceof Error ? err.message : t('deprecate.modal.failed')
+    deprecateError.value = err instanceof Error ? err.message : t('common.try_again')
   } finally {
     isDeprecating.value = false
   }
