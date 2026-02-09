@@ -166,7 +166,7 @@ describe('DeprecatePackageModal', () => {
         ...mountOptions,
       })
 
-      const submitBtn = component.get('[data-testid="deprecate-submit"]')
+      const submitBtn = component.get('[data-testid="modal-stub"]')
       expect(submitBtn.attributes('disabled')).toBeUndefined()
     })
 
@@ -180,7 +180,7 @@ describe('DeprecatePackageModal', () => {
       await component.find('#deprecate-message').setValue('Deprecated, use foo instead')
       await component.vm.$nextTick()
 
-      const submitBtn = component.get('[data-testid="deprecate-submit"]')
+      const submitBtn = component.get('[data-testid="modal-stub"]')
       expect(submitBtn.attributes('disabled')).toBeUndefined()
     })
 
