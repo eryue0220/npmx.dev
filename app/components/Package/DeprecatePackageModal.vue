@@ -56,11 +56,13 @@ const isSelectedVersionDeprecated = computed(() => {
 // Load full version list so deprecated check includes "Other versions"
 watch(
   () => props.packageName,
-  name => {
+  async name => {
     if (!name) return
-    fetchAllPackageVersions(name).then(versions => {
-      allPackageVersions.value = versions
-    })
+    try {
+      allPackageVersions.value = await fetchAllPackageVersions(name)
+    } catch {
+      allPackageVersions.value = null
+    }
   },
   { immediate: true },
 )
