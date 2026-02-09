@@ -136,6 +136,7 @@
         "version": "版本",
         "version_placeholder": "留空则废弃整个包",
         "already_deprecated": "已废弃",
+        "already_deprecated_version": "该版本已废弃。",
         "already_deprecated_detail": "该包或版本已处于废弃状态，无法再修改废弃状态。"
       }
     },

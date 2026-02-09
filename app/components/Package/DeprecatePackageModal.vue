@@ -2,6 +2,7 @@
 import type { NewOperation } from '~/composables/useConnector'
 import type Modal from '~/components/Modal.client.vue'
 import { PackageDeprecateParamsSchema, safeParse } from '~~/cli/src/schemas'
+import { fetchAllPackageVersions } from '~/utils/npm/api'
 
 const DEPRECATE_MESSAGE_MAX_LENGTH = 500
 
@@ -27,14 +28,45 @@ const deprecateError = shallowRef<string | null>(null)
 
 const connectorModal = useModal('connector-modal')
 
+/** Full version list (same as "Other versions"); fetched in modal for deprecated check. */
+const allPackageVersions = shallowRef<Awaited<ReturnType<typeof fetchAllPackageVersions>> | null>(
+  null,
+)
+
+/** Deprecated version strings from fetched full list (includes Other versions). */
+const effectiveDeprecatedVersions = computed(() => {
+  const list = allPackageVersions.value
+  if (!list) return []
+  return list.filter(v => v.deprecated).map(v => v.version)
+})
+
 const modalTitle = computed(() =>
   deprecateVersion.value
     ? `${t('package.deprecation.modal.title')} ${props.packageName}@${deprecateVersion.value}`
     : `${t('package.deprecation.modal.title')} ${props.packageName}`,
 )
 
+/** True when the user has entered a version in the form that is already deprecated. */
+const isSelectedVersionDeprecated = computed(() => {
+  const v = deprecateVersion.value.trim()
+  if (!v || !effectiveDeprecatedVersions.value.length) return false
+  return effectiveDeprecatedVersions.value.includes(v)
+})
+
+// Load full version list so deprecated check includes "Other versions"
+watch(
+  () => props.packageName,
+  name => {
+    if (!name) return
+    fetchAllPackageVersions(name).then(versions => {
+      allPackageVersions.value = versions
+    })
+  },
+  { immediate: true },
+)
+
 async function handleDeprecate() {
-  if (props.isAlreadyDeprecated) return
+  if (props.isAlreadyDeprecated || isSelectedVersionDeprecated.value) return
   const message = deprecateMessage.value.trim()
   if (!isConnected.value) return
 
@@ -122,17 +154,22 @@ defineExpose({ open, close })
 
 <template>
   <Modal ref="dialogRef" :modal-title="modalTitle" id="deprecate-package-modal" class="max-w-md">
-    <!-- Already deprecated: read-only, no form -->
-    <div v-if="isAlreadyDeprecated" class="space-y-4">
+    <!-- Already deprecated: entire module read-only, hint only, no form / no deprecate button -->
+    <div v-if="isAlreadyDeprecated" class="space-y-4" aria-readonly="true">
       <div
         class="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg"
+        role="status"
       >
-        <span class="i-carbon-warning-alt text-amber-500 w-6 h-6" aria-hidden="true" />
+        <span class="i-carbon-warning-alt text-amber-500 w-6 h-6 shrink-0" aria-hidden="true" />
         <div>
           <p class="font-mono text-sm text-fg">
-            {{ $t('package.deprecation.modal.already_deprecated') }}
+            {{
+              deprecateVersion
+                ? $t('package.deprecation.modal.already_deprecated_version')
+                : $t('package.deprecation.modal.already_deprecated')
+            }}
           </p>
-          <p class="text-xs text-fg-muted">
+          <p class="text-xs text-fg-muted mt-0.5">
             {{ $t('package.deprecation.modal.already_deprecated_detail') }}
           </p>
         </div>
@@ -168,8 +205,24 @@ defineExpose({ open, close })
       </button>
     </div>
 
-    <!-- Form (only shown when not already deprecated and connected) -->
+    <!-- Form -->
     <div v-else class="space-y-4">
+      <!-- Hint when user-entered version is already deprecated -->
+      <div
+        v-if="isSelectedVersionDeprecated"
+        class="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg"
+        role="status"
+      >
+        <span class="i-carbon-warning-alt text-amber-500 w-6 h-6 shrink-0" aria-hidden="true" />
+        <div>
+          <p class="font-mono text-sm text-fg">
+            {{ $t('package.deprecation.modal.already_deprecated_version') }}
+          </p>
+          <p class="text-xs text-fg-muted mt-0.5">
+            {{ $t('package.deprecation.modal.already_deprecated_detail') }}
+          </p>
+        </div>
+      </div>
       <div>
         <label for="deprecate-message" class="block text-sm font-medium text-fg mb-1">
           {{ $t('package.deprecation.modal.reason') }}
@@ -179,7 +232,8 @@ defineExpose({ open, close })
           v-model="deprecateMessage"
           rows="3"
           :maxlength="DEPRECATE_MESSAGE_MAX_LENGTH"
-          class="w-full px-3 py-2 font-mono text-sm bg-bg border border-border rounded-md text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-fg/50"
+          :disabled="isSelectedVersionDeprecated"
+          class="w-full px-3 py-2 font-mono text-sm bg-bg border border-border rounded-md text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-fg/50 disabled:opacity-60 disabled:cursor-not-allowed"
           :placeholder="$t('package.deprecation.modal.reason_placeholder')"
           :aria-describedby="
             deprecateMessage.length >= DEPRECATE_MESSAGE_MAX_LENGTH
@@ -203,7 +257,8 @@ defineExpose({ open, close })
           id="deprecate-version"
           v-model="deprecateVersion"
           type="text"
-          class="w-full px-3 py-2 font-mono text-sm bg-bg border border-border rounded-md text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-fg/50"
+          :disabled="isSelectedVersionDeprecated"
+          class="w-full px-3 py-2 font-mono text-sm bg-bg border border-border rounded-md text-fg placeholder:text-fg-muted focus:outline-none focus:ring-2 focus:ring-fg/50 disabled:opacity-60 disabled:cursor-not-allowed"
           :placeholder="$t('package.deprecation.modal.version_placeholder')"
         />
       </div>
@@ -216,7 +271,7 @@ defineExpose({ open, close })
       </div>
       <button
         type="button"
-        :disabled="isDeprecating || !deprecateMessage.trim()"
+        :disabled="isDeprecating || !deprecateMessage.trim() || isSelectedVersionDeprecated"
         class="w-full px-4 py-2 font-mono text-sm text-bg bg-fg rounded-md transition-colors duration-200 hover:bg-fg/90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fg/50"
         @click="handleDeprecate"
       >
