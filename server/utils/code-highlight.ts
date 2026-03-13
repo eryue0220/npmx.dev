@@ -178,7 +178,10 @@ export function linkifyModuleSpecifiers(html: string, options?: LinkifyOptions):
       return resolveRelative(moduleSpecifier)
     }
 
-    if ((cleanSpec.startsWith('#') || cleanSpec.startsWith('~')) && resolveRelative) {
+    if (
+      (cleanSpec.startsWith('#') || cleanSpec.startsWith('~') || cleanSpec.startsWith('@/')) &&
+      resolveRelative
+    ) {
       return resolveRelative(moduleSpecifier)
     }
 
