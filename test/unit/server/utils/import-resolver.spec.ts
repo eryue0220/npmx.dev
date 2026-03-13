@@ -197,6 +197,7 @@ describe('resolveInternalSpecifier', () => {
 
     const resolved = resolveInternalImport(
       '#app/nuxt',
+      'dist/index.js',
       {
         '#app/nuxt': './dist/app/nuxt.js',
       },
@@ -211,6 +212,7 @@ describe('resolveInternalSpecifier', () => {
 
     const resolved = resolveInternalImport(
       '#app/nuxt',
+      'dist/index.js',
       {
         '#app/nuxt': { import: './dist/app/nuxt.js' },
       },
@@ -225,6 +227,7 @@ describe('resolveInternalSpecifier', () => {
 
     const resolved = resolveInternalImport(
       '#app/nuxt',
+      'dist/index.js',
       {
         '#app/nuxt': './dist/app/nuxt.js',
       },
@@ -234,17 +237,18 @@ describe('resolveInternalSpecifier', () => {
     expect(resolved).toBeNull()
   })
 
-  it('returns null for unknown internal specifiers', () => {
+  it('resolves prefix matches with extension resolution via guessInternalImportTarget', () => {
     const files = new Set<string>(['dist/app/nuxt.js'])
 
     const resolved = resolveInternalImport(
       '#app/nuxt',
+      'dist/index.js',
       {
         '#app': './dist/app/index.js',
       },
       files,
     )
 
-    expect(resolved).toBeNull()
+    expect(resolved?.path).toBe('dist/app/nuxt.js')
   })
 })
