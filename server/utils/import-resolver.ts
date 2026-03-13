@@ -133,6 +133,10 @@ export interface ResolvedImport {
   path: string
 }
 
+export type InternalImportTarget = string | { default?: string; import?: string } | null | undefined
+
+export type InternalImportsMap = Record<string, InternalImportTarget>
+
 /**
  * Resolve a relative import specifier to an actual file path.
  *
@@ -200,6 +204,55 @@ export function resolveRelativeImport(
   return null
 }
 
+function normalizeInternalImportTarget(target: InternalImportTarget): string | null {
+  if (typeof target === 'string') {
+    return target
+  }
+
+  if (target && typeof target === 'object') {
+    if (typeof target.import === 'string') {
+      return target.import
+    }
+
+    if (typeof target.default === 'string') {
+      return target.default
+    }
+  }
+
+  return null
+}
+
+/**
+ * import ... from '#components/Button.vue'
+ * import ... from '#/components/Button.vue'
+ * import ... from '~/components/Button.vue'
+ * import ... from '~components/Button.vue'
+ */
+export function resolveInternalImport(
+  specifier: string,
+  imports: InternalImportsMap | undefined,
+  files: FileSet,
+): ResolvedImport | null {
+  const cleanSpecifier = specifier.replace(/^['"]|['"]$/g, '').trim()
+
+  if ((!cleanSpecifier.startsWith('#') && !cleanSpecifier.startsWith('~')) || !imports) {
+    return null
+  }
+
+  const target = normalizeInternalImportTarget(imports[cleanSpecifier])
+  console.log('resolved internal import', imports, cleanSpecifier, target)
+  if (!target || !target.startsWith('./')) {
+    return null
+  }
+
+  const path = normalizePath(target)
+  if (!path || path.startsWith('..') || !files.has(path)) {
+    return null
+  }
+
+  return { path }
+}
+
 /**
  * Create a resolver function bound to a specific file tree and current file.
  */
@@ -208,9 +261,13 @@ export function createImportResolver(
   currentFile: string,
   packageName: string,
   version: string,
+  internalImports?: InternalImportsMap,
 ): (specifier: string) => string | null {
   return (specifier: string) => {
-    const resolved = resolveRelativeImport(specifier, currentFile, files)
+    const relativeResolved = resolveRelativeImport(specifier, currentFile, files)
+    const internalResolved = resolveInternalImport(specifier, internalImports, files)
+    const resolved = relativeResolved ?? internalResolved
+
     if (resolved) {
       return `/package-code/${packageName}/v/${version}/${resolved.path}`
     }

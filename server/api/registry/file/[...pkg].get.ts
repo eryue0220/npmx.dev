@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import type { InternalImportsMap } from '#server/utils/import-resolver'
 import { PackageFileQuerySchema } from '#shared/schemas/package'
 import type { ReadmeResponse } from '#shared/types/readme'
 import {
@@ -27,6 +28,7 @@ interface PackageJson {
   devDependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
+  imports?: InternalImportsMap
 }
 
 /**
@@ -159,7 +161,13 @@ export default defineCachedEventHandler(
         // Create resolver for relative imports
         if (fileTreeResponse) {
           const files = flattenFileTree(fileTreeResponse.tree)
-          resolveRelative = createImportResolver(files, filePath, packageName, version)
+          resolveRelative = createImportResolver(
+            files,
+            filePath,
+            packageName,
+            version,
+            pkgJson?.imports,
+          )
         }
       }
 
@@ -200,6 +208,7 @@ export default defineCachedEventHandler(
   {
     // File content for a specific version never changes - cache permanently
     maxAge: CACHE_MAX_AGE_ONE_YEAR, // 1 year
+    shouldBypassCache: () => import.meta.dev,
     getKey: event => {
       const pkg = getRouterParam(event, 'pkg') ?? ''
       return `file:v${CACHE_VERSION}:${pkg.replace(/\/+$/, '').trim()}`
