@@ -253,6 +253,10 @@ function normalizeInternalImportTarget(target: InternalImportTarget): string | n
   return null
 }
 
+function normalizeAliasPrefix(value: string): string {
+  return value.replace(/^([#~@])\//, '$1')
+}
+
 function guessInternalImportTarget(
   imports: InternalImportsMap,
   specifier: string,
@@ -260,11 +264,16 @@ function guessInternalImportTarget(
   currentFile: string,
 ): string | null {
   for (const [key, value] of Object.entries(imports)) {
-    if (specifier.startsWith(key)) {
+    const normalizedSpecifier = normalizeAliasPrefix(specifier)
+    const normalizedKey = normalizeAliasPrefix(key)
+    if (
+      normalizedSpecifier === normalizedKey ||
+      normalizedSpecifier.startsWith(`${normalizedKey}/`)
+    ) {
       const basePath = resolveAliasToDir(key, normalizeInternalImportTarget(value))
       if (!basePath) continue
 
-      const suffix = specifier.substring(key.length).trim().replace(/^\//, '')
+      const suffix = normalizedSpecifier.slice(normalizedKey.length).replace(/^\//, '')
       const pathWithoutExt = suffix ? `${basePath}/${suffix}` : basePath
 
       const toCheckPath = (p: string) => files.has(normalizePath(p)) || files.has(p)
