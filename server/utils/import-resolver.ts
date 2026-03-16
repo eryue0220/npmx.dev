@@ -261,8 +261,9 @@ function guessInternalImportTarget(
   files: FileSet,
   currentFile: string,
 ): string | null {
+  const normalizedSpecifier = normalizeAliasPrefix(specifier)
+
   for (const [key, value] of Object.entries(imports)) {
-    const normalizedSpecifier = normalizeAliasPrefix(specifier)
     const normalizedKey = normalizeAliasPrefix(key)
     if (
       normalizedSpecifier === normalizedKey ||
