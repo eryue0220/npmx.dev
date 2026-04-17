@@ -88,7 +88,7 @@ const corsOptions: CorsOptions = {
   allowHeaders: ['Content-Type', 'Authorization'],
 }
 
-export function createConnectorApp(expectedToken: string) {
+export function createConnectorApp(expectedToken: string): H3 {
   const state: ConnectorState = {
     session: {
       token: expectedToken,
@@ -810,9 +810,7 @@ async function executeOperation(
       result = await ownerRemove(params.user, params.pkg, execOptions)
       break
     case 'package:init':
-      // package:init has its own special execution path (temp dir + publish)
-      // and does not support interactive mode
-      result = await packageInit(params.name, params.author, options.otp)
+      result = await packageInit(params.name, params.author, execOptions)
       break
     case 'package:deprecate': {
       const dryRun = params.dryRun === 'true'

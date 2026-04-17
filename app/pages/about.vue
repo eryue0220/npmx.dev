@@ -3,9 +3,6 @@ import type { Role } from '#server/api/contributors.get'
 import { SPONSORS } from '~/assets/logos/sponsors'
 import { OSS_PARTNERS } from '~/assets/logos/oss-partners'
 
-const router = useRouter()
-const canGoBack = useCanGoBack()
-
 useSeoMeta({
   title: () => `${$t('about.title')} - npmx`,
   ogTitle: () => `${$t('about.title')} - npmx`,
@@ -57,22 +54,14 @@ const roleLabels = computed(
           <h1 class="font-mono text-3xl sm:text-4xl font-medium">
             {{ $t('about.heading') }}
           </h1>
-          <button
-            type="button"
-            class="cursor-pointer inline-flex items-center gap-2 p-1.5 -mx-1.5 font-mono text-sm text-fg-muted hover:text-fg transition-colors duration-200 rounded focus-visible:outline-accent/70 shrink-0"
-            @click="router.back()"
-            v-if="canGoBack"
-          >
-            <span class="i-lucide:arrow-left rtl-flip w-4 h-4" aria-hidden="true" />
-            <span class="hidden sm:inline">{{ $t('nav.back') }}</span>
-          </button>
+          <BackButton />
         </div>
         <p class="text-fg-muted text-lg">
           {{ $t('tagline') }}
         </p>
       </header>
 
-      <section class="prose prose-invert max-w-none space-y-12">
+      <section class="max-w-none space-y-12">
         <div>
           <h2 class="text-lg text-fg uppercase tracking-wider mb-4">
             {{ $t('about.what_we_are.title') }}
@@ -157,18 +146,23 @@ const roleLabels = computed(
           </ul>
         </div>
 
-        <div>
+        <!-- Sponsors -->
+        <div class="sponsors-logos">
           <h2 class="text-lg text-fg uppercase tracking-wider mb-4">
             {{ $t('about.sponsors.title') }}
           </h2>
-          <AboutLogoList :list="SPONSORS" />
+          <AboutLogoList
+            :list="SPONSORS"
+            class="grid grid-cols-2 md:flex md:flex-row md:items-center"
+          />
         </div>
 
+        <!-- OSS partners -->
         <div>
           <h2 class="text-lg text-fg uppercase tracking-wider mb-4">
             {{ $t('about.oss_partners.title') }}
           </h2>
-          <AboutLogoList :list="OSS_PARTNERS" />
+          <AboutLogoList :list="OSS_PARTNERS" class="items-center" />
         </div>
 
         <div>
@@ -270,29 +264,24 @@ const roleLabels = computed(
                 :key="contributor.id"
                 class="block group relative"
               >
-                <a
-                  :href="contributor.html_url"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  :aria-label="$t('about.contributors.view_profile', { name: contributor.login })"
-                  class="block rounded-lg"
-                >
-                  <img
-                    :src="`${contributor.avatar_url}&s=64`"
-                    :alt="`${contributor.login}'s avatar`"
-                    width="48"
-                    height="48"
-                    class="w-12 h-12 rounded-lg ring-2 ring-transparent group-hover:ring-accent transition-all duration-200 ease-out group-hover:scale-125 will-change-transform"
-                    loading="lazy"
-                  />
-                  <span
-                    class="pointer-events-none absolute -top-9 inset-is-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 text-xs px-2 py-1 shadow-lg opacity-0 scale-95 transition-all duration-150 group-hover:opacity-100 group-hover:scale-100"
-                    dir="ltr"
-                    role="tooltip"
+                <TooltipApp :text="`@${contributor.login}`" class="block" position="top">
+                  <a
+                    :href="contributor.html_url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :aria-label="$t('about.contributors.view_profile', { name: contributor.login })"
+                    class="block rounded-lg"
                   >
-                    @{{ contributor.login }}
-                  </span>
-                </a>
+                    <img
+                      :src="`${contributor.avatar_url}&s=64`"
+                      :alt="`${contributor.login}'s avatar`"
+                      width="48"
+                      height="48"
+                      class="w-12 h-12 rounded-lg ring-2 ring-transparent group-hover:ring-accent transition-all duration-200 ease-out group-hover:scale-125 will-change-transform"
+                      loading="lazy"
+                    />
+                  </a>
+                </TooltipApp>
               </li>
             </ul>
           </section>
