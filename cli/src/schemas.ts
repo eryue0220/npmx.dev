@@ -1,5 +1,6 @@
 import * as v from 'valibot'
 import validateNpmPackageName from 'validate-npm-package-name'
+import { PackageDeprecateParamsSchema } from '../../shared/schemas/package.ts'
 
 // Validation pattern for npm usernames/org names
 // These follow similar rules: lowercase alphanumeric with hyphens, can't start/end with hyphen
@@ -245,19 +246,6 @@ const OwnerRemoveParamsSchema = v.object({
 export const PackageInitParamsSchema = v.object({
   name: NewPackageNameSchema,
   author: v.optional(UsernameSchema),
-})
-
-/** Schema for package:deprecate operation params. Exported for client-side validation. */
-export const PackageDeprecateParamsSchema = v.object({
-  pkg: PackageNameSchema,
-  message: v.pipe(
-    v.string(),
-    v.nonEmpty('Deprecation message is required'),
-    v.maxLength(500, 'Message is too long'),
-  ),
-  version: v.optional(v.pipe(v.string(), v.nonEmpty())),
-  dryRun: v.optional(v.picklist(['true', 'false'], 'dryRun must be "true" or "false"')),
-  registry: v.optional(v.pipe(v.string(), v.minLength(1, 'Registry URL cannot be empty'))),
 })
 
 // ============================================================================

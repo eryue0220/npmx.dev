@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NewOperation } from '~/composables/useConnector'
-import { PackageDeprecateParamsSchema, safeParse } from '~~/cli/src/schemas'
+import * as v from 'valibot'
+import { PackageDeprecateParamsSchema } from '#shared/schemas/package'
 
 const DEPRECATE_MESSAGE_MAX_LENGTH = 500
 
@@ -54,9 +55,12 @@ async function handleDeprecate() {
     params.version = deprecateVersion.value.trim()
   }
 
-  const parsed = safeParse(PackageDeprecateParamsSchema, params)
+  const parsed = v.safeParse(PackageDeprecateParamsSchema, params)
   if (!parsed.success) {
-    deprecateError.value = parsed.error
+    const firstIssue = parsed.issues[0]
+    const path = firstIssue?.path?.map(p => p.key).join('.') || ''
+    const message = firstIssue?.message || 'Validation failed'
+    deprecateError.value = path ? `${path}: ${message}` : message
     return
   }
 
@@ -64,21 +68,21 @@ async function handleDeprecate() {
   deprecateError.value = null
 
   try {
-    const escapedMessage = parsed.data.message.replace(/"/g, '\\"')
-    const command = parsed.data.version
-      ? `npm deprecate ${parsed.data.pkg}@${parsed.data.version} "${escapedMessage}"`
-      : `npm deprecate ${parsed.data.pkg} "${escapedMessage}"`
+    const escapedMessage = parsed.output.message.replace(/"/g, '\\"')
+    const command = parsed.output.version
+      ? `npm deprecate ${parsed.output.pkg}@${parsed.output.version} "${escapedMessage}"`
+      : `npm deprecate ${parsed.output.pkg} "${escapedMessage}"`
 
     const operation = await addOperation({
       type: 'package:deprecate',
       params: {
-        pkg: parsed.data.pkg,
-        message: parsed.data.message,
-        ...(parsed.data.version && { version: parsed.data.version }),
+        pkg: parsed.output.pkg,
+        message: parsed.output.message,
+        ...(parsed.output.version && { version: parsed.output.version }),
       },
-      description: parsed.data.version
-        ? `Deprecate ${parsed.data.pkg}@${parsed.data.version}`
-        : `Deprecate ${parsed.data.pkg}`,
+      description: parsed.output.version
+        ? `Deprecate ${parsed.output.pkg}@${parsed.output.version}`
+        : `Deprecate ${parsed.output.pkg}`,
       command,
     } as NewOperation)
 
