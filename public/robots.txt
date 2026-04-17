@@ -1,9 +1,15 @@
-# todo remove
-User-agent: *
 Allow: /$
 Allow: /about$
+Allow: /accessibility$
+Allow: /blog
+Allow: /brand$
+Allow: /pds$
 Allow: /privacy$
-Allow: /__og-image__/*
+Allow: /translation-status$
+Allow: /recharging$
+Allow: /_og/d/*
+Allow: /opensearch.xml$
+
 Disallow: /
 
 # User-agent: *

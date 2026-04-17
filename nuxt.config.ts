@@ -2,19 +2,21 @@ import process from 'node:process'
 import { currentLocales } from './config/i18n'
 import { isCI, isTest, provider } from 'std-env'
 
+const isStorybook = process.env.STORYBOOK === 'true' || process.env.VITEST_STORYBOOK === 'true'
+
 export default defineNuxtConfig({
   modules: [
     '@unocss/nuxt',
+    'nuxt-og-image',
     '@nuxtjs/html-validator',
     '@nuxt/scripts',
     '@nuxt/a11y',
-    '@nuxt/fonts',
-    'nuxt-og-image',
     '@nuxt/test-utils',
     '@vite-pwa/nuxt',
     '@vueuse/nuxt',
     '@nuxtjs/i18n',
     '@nuxtjs/color-mode',
+    ...(isStorybook ? [] : ['@nuxt/fonts']),
   ],
 
   $test: {
@@ -30,7 +32,7 @@ export default defineNuxtConfig({
     storageKey: 'npmx-color-mode',
   },
 
-  css: ['~/assets/main.css', 'vue-data-ui/style.css'],
+  css: ['~/assets/main.css'],
 
   runtimeConfig: {
     sessionPassword: '',
@@ -74,7 +76,6 @@ export default defineNuxtConfig({
           href: '/opensearch.xml',
         },
       ],
-      meta: [{ name: 'twitter:card', content: 'summary_large_image' }],
     },
   },
 
@@ -98,12 +99,19 @@ export default defineNuxtConfig({
 
   routeRules: {
     // API routes
-    '/api/**': { isr: 60 },
+    '/api/**': { isr: 300 },
     '/api/registry/badge/**': {
       isr: {
         expiration: 60 * 60 /* one hour */,
         passQuery: true,
-        allowQuery: ['color', 'labelColor', 'label', 'name', 'style'],
+        allowQuery: ['color', 'labelColor', 'label', 'name', 'style', 'value'],
+      },
+    },
+    '/api/registry/image-proxy': {
+      isr: {
+        expiration: 60 * 60 /* one hour */,
+        passQuery: true,
+        allowQuery: ['url', 'sig'],
       },
     },
     '/api/registry/downloads/**': {
@@ -113,6 +121,13 @@ export default defineNuxtConfig({
         allowQuery: ['mode', 'filterOldVersions', 'filterThreshold'],
       },
     },
+    '/api/registry/timeline/**': {
+      isr: {
+        expiration: 300,
+        passQuery: true,
+        allowQuery: ['offset', 'limit'],
+      },
+    },
     '/api/registry/docs/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
     '/api/registry/file/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
     '/api/registry/provenance/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
@@ -120,14 +135,30 @@ export default defineNuxtConfig({
     '/api/registry/package-meta/**': { isr: 300 },
     '/:pkg/.well-known/skills/**': { isr: 3600 },
     '/:scope/:pkg/.well-known/skills/**': { isr: 3600 },
-    '/__og-image__/**': getISRConfig(60),
     '/_avatar/**': { isr: 3600, proxy: 'https://www.gravatar.com/avatar/**' },
     '/opensearch.xml': { isr: true },
     '/oauth-client-metadata.json': { prerender: true },
     '/.well-known/jwks.json': { prerender: true },
+    '/.well-known/site.standard.publication': { prerender: true },
     // never cache
     '/api/auth/**': { isr: false, cache: false },
     '/api/social/**': { isr: false, cache: false },
+    '/api/atproto/bluesky-comments': {
+      isr: {
+        expiration: 60 * 60 /* one hour */,
+        passQuery: true,
+        allowQuery: ['uri'],
+      },
+      cache: { maxAge: 3600 },
+    },
+    '/api/atproto/bluesky-author-profiles': {
+      isr: {
+        expiration: 60 * 60 /* one hour */,
+        passQuery: true,
+        allowQuery: ['authors'],
+      },
+      cache: { maxAge: 3600 },
+    },
     '/api/opensearch/suggestions': {
       isr: {
         expiration: 60 * 60 * 24 /* one day */,
@@ -136,25 +167,35 @@ export default defineNuxtConfig({
       },
     },
     // pages
-    '/package/**': getISRConfig(60, { fallback: 'html' }),
-    '/package/:name/_payload.json': getISRConfig(60, { fallback: 'json' }),
-    '/package/:name/v/:version/_payload.json': getISRConfig(60, { fallback: 'json' }),
-    '/package/:org/:name/_payload.json': getISRConfig(60, { fallback: 'json' }),
-    '/package/:org/:name/v/:version/_payload.json': getISRConfig(60, { fallback: 'json' }),
+    '/package/**': getISRConfig(300, { fallback: 'html' }),
+    '/package/:name/_payload.json': getISRConfig(300, { fallback: 'json' }),
+    '/package/:name/v/:version/_payload.json': getISRConfig(300, { fallback: 'json' }),
+    '/package/:org/:name/_payload.json': getISRConfig(300, { fallback: 'json' }),
+    '/package/:org/:name/v/:version/_payload.json': getISRConfig(300, { fallback: 'json' }),
     // infinite cache (versioned - doesn't change)
-    '/package-code/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
-    '/package-docs/**': { isr: true, cache: { maxAge: 365 * 24 * 60 * 60 } },
+    '/package-code/**': {
+      headers: { 'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000' },
+    },
+    '/package-docs/**': {
+      headers: { 'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000' },
+    },
     // static pages
     '/': { prerender: true },
     '/200.html': { prerender: true },
     '/about': { prerender: true },
     '/accessibility': { prerender: true },
+    '/brand': { prerender: true },
     '/privacy': { prerender: true },
     '/search': { isr: false, cache: false }, // never cache
     '/settings': { prerender: true },
+    '/translation-status': { prerender: true },
     '/recharging': { prerender: true },
+    '/pds': { isr: 86400 }, // revalidate daily
+    '/blog/**': { prerender: true },
     // proxy for insights
-    '/_v/script.js': { proxy: 'https://npmx.dev/_vercel/insights/script.js' },
+    '/_v/script.js': {
+      proxy: 'https://npmx.dev/_vercel/insights/script.js',
+    },
     '/_v/view': { proxy: 'https://npmx.dev/_vercel/insights/view' },
     '/_v/event': { proxy: 'https://npmx.dev/_vercel/insights/event' },
     '/_v/session': { proxy: 'https://npmx.dev/_vercel/insights/session' },
@@ -169,7 +210,7 @@ export default defineNuxtConfig({
   experimental: {
     entryImportMap: false,
     typescriptPlugin: true,
-    viteEnvironmentApi: true,
+    viteEnvironmentApi: !isStorybook,
     typedPages: true,
   },
 
@@ -242,6 +283,12 @@ export default defineNuxtConfig({
         preload: true,
         global: true,
       },
+      {
+        name: 'IBM Plex Sans Arabic',
+        weights: ['400', '500', '600'],
+        global: true,
+        subsets: ['arabic'],
+      },
     ],
   },
 
@@ -257,24 +304,24 @@ export default defineNuxtConfig({
   },
 
   ogImage: {
-    defaults: {
-      component: 'Default',
+    enabled: !isStorybook,
+    cacheMaxAgeSeconds: 60 * 60 * 24, // 1 day, download counts change daily
+    security: {
+      // Reuse image-proxy HMAC secret to avoid managing a second secret.
+      // Strict mode only activates when a secret is present (CI builds without one).
+      strict: !!process.env.NUXT_IMAGE_PROXY_SECRET,
+      secret: process.env.NUXT_IMAGE_PROXY_SECRET,
+      // HMAC signing is sufficient; origin pinning blocks localhost e2e runs
+      // and adds no meaningful security on top of signed URLs.
+      restrictRuntimeImagesToOrigin: false,
     },
-    fonts: [
-      { name: 'Geist', weight: 400, path: '/fonts/Geist-Regular.ttf' },
-      { name: 'Geist', weight: 500, path: '/fonts/Geist-Medium.ttf' },
-      { name: 'Geist', weight: 600, path: '/fonts/Geist-SemiBold.ttf' },
-      { name: 'Geist', weight: 700, path: '/fonts/Geist-Bold.ttf' },
-      { name: 'Geist Mono', weight: 400, path: '/fonts/GeistMono-Regular.ttf' },
-      { name: 'Geist Mono', weight: 500, path: '/fonts/GeistMono-Medium.ttf' },
-      { name: 'Geist Mono', weight: 700, path: '/fonts/GeistMono-Bold.ttf' },
-    ],
   },
 
   pwa: {
     // Disable service worker
     disable: true,
     pwaAssets: {
+      disabled: isStorybook,
       config: false,
     },
     manifest: {
@@ -345,6 +392,8 @@ export default defineNuxtConfig({
         '@vueuse/integrations/useFocusTrap/component',
         'vue-data-ui/vue-ui-sparkline',
         'vue-data-ui/vue-ui-xy',
+        'vue-data-ui/vue-ui-scatter',
+        'vue-data-ui/vue-ui-horizontal-bar',
         'virtua/vue',
         'semver',
         'validate-npm-package-name',
@@ -352,6 +401,8 @@ export default defineNuxtConfig({
         'fast-npm-meta',
         '@floating-ui/vue',
         'algoliasearch/lite',
+        '@vue/devtools-core',
+        '@vue/devtools-kit',
       ],
     },
   },

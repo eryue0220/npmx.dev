@@ -65,9 +65,7 @@ const currentPage = shallowRef(1)
 
 // Calculate total pages
 const totalPages = computed(() => {
-  if (pageSize.value === 'all') return 1
-  const numericSize = typeof pageSize.value === 'number' ? pageSize.value : 25
-  return Math.ceil(sortedPackages.value.length / numericSize)
+  return Math.ceil(sortedPackages.value.length / pageSize.value)
 })
 
 // Reset to page 1 when filters change
@@ -141,11 +139,14 @@ useSeoMeta({
   twitterDescription: () => `npm packages published by the ${orgName.value} organization`,
 })
 
-defineOgImageComponent('Default', {
-  title: () => `@${orgName.value}`,
-  description: () => (packageCount.value ? `${packageCount.value} packages` : 'npm organization'),
-  primaryColor: '#60a5fa',
-})
+defineOgImage(
+  'Page.takumi',
+  {
+    title: () => `@${orgName.value}`,
+    description: () => (packageCount.value ? `${packageCount.value} packages` : 'npm organization'),
+  },
+  { alt: () => `@${orgName.value} npm organization on npmx` },
+)
 </script>
 
 <template>
@@ -177,7 +178,7 @@ defineOgImageComponent('Default', {
               target="_blank"
               rel="noopener noreferrer"
               class="link-subtle font-mono text-sm inline-flex items-center gap-1.5"
-              :title="$t('common.view_on_npm')"
+              :title="$t('common.view_on.npm')"
             >
               <span class="i-simple-icons:npm w-4 h-4" aria-hidden="true" />
               npm

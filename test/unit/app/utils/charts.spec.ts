@@ -1,14 +1,136 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import {
   sum,
   chunkIntoWeeks,
   buildWeeklyEvolutionFromDaily,
-  addDays,
   clamp,
   quantile,
   winsorize,
   computeLineChartAnalysis,
-} from '../../../../app/utils/charts'
+  createAltTextForTrendLineChart,
+  copyAltTextForTrendLineChart,
+  createAltTextForVersionsBarChart,
+  copyAltTextForVersionsBarChart,
+  loadFile,
+  sanitise,
+  insertLineBreaks,
+  applyEllipsis,
+  type TrendLineConfig,
+  type TrendLineDataset,
+  type VersionsBarConfig,
+  type VersionsBarDataset,
+} from '~/utils/charts'
+import type { AltCopyArgs } from 'vue-data-ui'
+
+type TranslateCall = { key: string | number; named?: Record<string, unknown> }
+
+function createTranslateMock() {
+  const calls: TranslateCall[] = []
+
+  const translate = ((key: string | number, named?: Record<string, unknown>) => {
+    calls.push({ key, named })
+    return typeof key === 'string' ? `t:${key}` : `t:${String(key)}`
+  }) as TrendLineConfig['$t']
+
+  return { translate, calls }
+}
+
+function createTrendLineConfig(overrides: Partial<TrendLineConfig> = {}): TrendLineConfig {
+  const { translate } = createTranslateMock()
+
+  const trendLineConfig: TrendLineConfig = {
+    formattedDates: [
+      { text: '2026-03-01', absoluteIndex: 0 },
+      { text: '2026-03-10', absoluteIndex: 9 },
+    ],
+    hasEstimation: false,
+    formattedDatasetValues: [['1', '2']],
+    granularity: 'weekly',
+    copy: vi.fn(async () => undefined),
+    $t: translate,
+    numberFormatter: (value: number) => `nf:${value}`,
+  } as unknown as TrendLineConfig
+
+  return { ...trendLineConfig, ...overrides }
+}
+
+function createDatasetWithSingleLine(values: Array<number | null>): TrendLineDataset {
+  return {
+    lines: [
+      {
+        name: 'nuxt',
+        series: values,
+      } as any,
+    ],
+  }
+}
+
+function createDatasetWithTwoLines(
+  firstValues: Array<number | null>,
+  secondValues: Array<number | null>,
+): TrendLineDataset {
+  return {
+    lines: [
+      { name: 'nuxt', series: firstValues } as any,
+      { name: 'svelte', series: secondValues } as any,
+    ],
+  }
+}
+
+function createConfig(overrides: Partial<TrendLineConfig> = {}): TrendLineConfig {
+  const config: TrendLineConfig = {
+    theme: 'dark',
+    chart: {},
+    formattedDates: [],
+    hasEstimation: false,
+    formattedDatasetValues: [],
+    granularity: 'weekly',
+    copy: vi.fn(async () => undefined),
+    $t: ((key: string | number) => String(key)) as any,
+    numberFormatter: (value: number) => String(value),
+  } as unknown as TrendLineConfig
+
+  return { ...config, ...overrides }
+}
+
+function createDataset(): TrendLineDataset {
+  return {
+    lines: [{ name: 'nuxt', series: [1, 2, 3] } as any],
+  }
+}
+
+function createVersionsBarConfigForTests(
+  overrides: Partial<VersionsBarConfig> = {},
+): VersionsBarConfig {
+  const { translate } = createTranslateMock()
+
+  const base: VersionsBarConfig = {
+    theme: 'dark',
+    chart: {},
+    copy: vi.fn(async () => undefined),
+    $t: translate as any,
+    numberFormatter: (value: number) => `nf:${value}`,
+    datapointLabels: [],
+    dateRangeLabel: 'RANGE',
+    semverGroupingMode: 'major',
+  } as unknown as VersionsBarConfig
+
+  return { ...base, ...overrides }
+}
+
+function createVersionsBarDatasetForTests(
+  values: Array<number | null | undefined>,
+  packageName?: string,
+): VersionsBarDataset {
+  return {
+    bars: [
+      {
+        name: packageName,
+        series: values,
+      } as any,
+    ],
+  }
+}
 
 describe('sum', () => {
   it('returns 0 for an empty array', () => {
@@ -202,59 +324,6 @@ describe('buildWeeklyEvolutionFromDaily', () => {
   })
 })
 
-describe('addDays', () => {
-  it('returns a new Date instance (does not mutate original)', () => {
-    const original = new Date('2028-01-01T00:00:00Z')
-    const result = addDays(original, 5)
-
-    expect(result).not.toBe(original)
-    expect(original.toISOString()).toBe('2028-01-01T00:00:00.000Z')
-  })
-
-  it('adds positive days correctly', () => {
-    const date = new Date('2028-01-01T00:00:00Z')
-    const result = addDays(date, 10)
-
-    expect(result.toISOString()).toBe('2028-01-11T00:00:00.000Z')
-  })
-
-  it('subtracts days when negative value is provided', () => {
-    const date = new Date('2028-01-10T00:00:00Z')
-    const result = addDays(date, -5)
-
-    expect(result.toISOString()).toBe('2028-01-05T00:00:00.000Z')
-  })
-
-  it('handles month overflow correctly', () => {
-    const date = new Date('2028-01-28T00:00:00Z')
-    const result = addDays(date, 5)
-
-    expect(result.toISOString()).toBe('2028-02-02T00:00:00.000Z')
-  })
-
-  it('handles year overflow correctly', () => {
-    const date = new Date('2027-12-29T00:00:00Z')
-    const result = addDays(date, 5)
-
-    expect(result.toISOString()).toBe('2028-01-03T00:00:00.000Z')
-  })
-
-  it('handles leap year correctly', () => {
-    const date = new Date('2028-02-27T00:00:00Z') // 2028 is leap year
-    const result = addDays(date, 2)
-
-    expect(result.toISOString()).toBe('2028-02-29T00:00:00.000Z')
-  })
-
-  it('keeps UTC behavior consistent (no timezone drift)', () => {
-    const date = new Date('2028-03-01T00:00:00Z')
-    const result = addDays(date, 1)
-
-    expect(result.getUTCHours()).toBe(0)
-    expect(result.toISOString()).toBe('2028-03-02T00:00:00.000Z')
-  })
-})
-
 describe('clamp', () => {
   it('returns the value when it is within bounds', () => {
     expect(clamp(5, 0, 10)).toBe(5)
@@ -373,30 +442,30 @@ describe('winsorize', () => {
   })
 })
 
+const computeBaseTrend = (rSquared: number | null) => {
+  if (rSquared === null) return 'undefined' as const
+  if (rSquared > 0.75) return 'strong' as const
+  if (rSquared > 0.4) return 'weak' as const
+  return 'none' as const
+}
+
+const buildSeries = (base: number, step: number, noiseAmplitude: number) => {
+  const values: number[] = []
+  for (let i = 0; i < 19; i += 1) {
+    const noise =
+      i % 4 === 0
+        ? noiseAmplitude
+        : i % 4 === 1
+          ? -noiseAmplitude
+          : i % 4 === 2
+            ? Math.floor(noiseAmplitude / 2)
+            : -Math.floor(noiseAmplitude / 2)
+    values.push(base + i * step + noise)
+  }
+  return values
+}
+
 describe('computeLineChartAnalysis', () => {
-  const computeBaseTrend = (rSquared: number | null) => {
-    if (rSquared === null) return 'undefined' as const
-    if (rSquared > 0.75) return 'strong' as const
-    if (rSquared > 0.4) return 'weak' as const
-    return 'none' as const
-  }
-
-  const buildSeries = (base: number, step: number, noiseAmplitude: number) => {
-    const values: number[] = []
-    for (let i = 0; i < 19; i += 1) {
-      const noise =
-        i % 4 === 0
-          ? noiseAmplitude
-          : i % 4 === 1
-            ? -noiseAmplitude
-            : i % 4 === 2
-              ? Math.floor(noiseAmplitude / 2)
-              : -Math.floor(noiseAmplitude / 2)
-      values.push(base + i * step + noise)
-    }
-    return values
-  }
-
   it('returns undefined interpretations for empty array', () => {
     const result = computeLineChartAnalysis([])
     expect(result.mean).toBe(0)
@@ -667,5 +736,666 @@ describe('computeLineChartAnalysis', () => {
     const undefinedTrend = computeLineChartAnalysis([0, 0, 0, 0])
     expect(undefinedTrend.rSquared).toBeNull()
     expect(undefinedTrend.interpretation.trend).toBe('none')
+  })
+})
+
+describe('createAltTextForTrendLineChart', () => {
+  it('handles dataset with empty lines without throwing', () => {
+    const { translate } = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({ $t: translate })
+
+    expect(() =>
+      createAltTextForTrendLineChart({
+        dataset: { lines: [] },
+        config: trendLineConfig,
+      } as AltCopyArgs<TrendLineDataset, TrendLineConfig>),
+    ).not.toThrow()
+  })
+
+  it('returns empty string when dataset is null', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({ $t: translateMock.translate })
+
+    const result = createAltTextForTrendLineChart({
+      dataset: null,
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    expect(result).toBe('')
+    expect(translateMock.calls).toHaveLength(0)
+  })
+
+  it('uses single-package prefix when there is one line', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({ $t: translateMock.translate })
+
+    const result = createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    expect(result.startsWith('t:package.trends.copy_alt.single_package')).toBe(true)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.single_package')
+    expect(keys).toContain('package.trends.copy_alt.general_description')
+    expect(keys).toContain('package.trends.copy_alt.analysis')
+  })
+
+  it('uses compare prefix when there are multiple lines', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({ $t: translateMock.translate })
+
+    const result = createAltTextForTrendLineChart({
+      dataset: createDatasetWithTwoLines([10, 20, 30, 40], [40, 30, 20, 10]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    expect(result.startsWith('t:package.trends.copy_alt.compare')).toBe(true)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.compare')
+    expect(keys).toContain('package.trends.copy_alt.general_description')
+    expect(keys).toContain('package.trends.copy_alt.analysis')
+  })
+
+  it('translates granularity through the static map for weekly', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      granularity: 'weekly',
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.granularity_weekly')
+  })
+
+  it('falls back to weekly granularity key when granularity is not in the map', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      granularity: 'day' as unknown as TrendLineConfig['granularity'],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.granularity_weekly')
+  })
+
+  it('includes estimation notice when hasEstimation is true', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      hasEstimation: true,
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.estimation')
+  })
+
+  it('uses plural estimation key when hasEstimation is true and multiple lines exist', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      hasEstimation: true,
+      formattedDatasetValues: [
+        ['1', '2'],
+        ['3', '4'],
+      ],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithTwoLines([10, 20, 30, 40], [40, 30, 20, 10]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.estimations')
+  })
+
+  it('uses the correct trend translation key for a strong trend', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      formattedDatasetValues: [['10', '40']],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.trend_strong')
+  })
+
+  it('uses the correct trend translation key for undefined trend (flat series)', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      formattedDatasetValues: [['5', '5']],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([5, 5, 5, 5]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const keys = translateMock.calls.map(call => call.key)
+    expect(keys).toContain('package.trends.copy_alt.trend_none')
+  })
+
+  it('passes expected named parameters into analysis translation', () => {
+    const translateMock = createTranslateMock()
+    const numberFormatter = vi.fn((value: number) => `formatted:${value}`)
+
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      numberFormatter,
+      formattedDatasetValues: [['100', '200']],
+      formattedDates: [
+        { text: '2026-03-01', absoluteIndex: 0 },
+        { text: '2026-03-10', absoluteIndex: 9 },
+      ],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([100, 120, 140, 160, 180, 200]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const analysisCall = translateMock.calls.find(
+      call => call.key === 'package.trends.copy_alt.analysis',
+    )
+    expect(analysisCall).toBeTruthy()
+
+    const named = analysisCall?.named ?? {}
+    expect(named).toHaveProperty('package_name', 'nuxt')
+    expect(named).toHaveProperty('start_value', '100')
+    expect(named).toHaveProperty('end_value', '200')
+    expect(named).toHaveProperty('trend')
+    expect(named).toHaveProperty('downloads_slope')
+
+    expect(numberFormatter).toHaveBeenCalledTimes(1)
+    expect(String(named.downloads_slope)).toMatch(/^formatted:/)
+  })
+
+  it('uses "-" fallback for missing formatted dates in general_description named parameters', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      formattedDates: [],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithSingleLine([10, 20, 30, 40]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const generalDescriptionCall = translateMock.calls.find(
+      call => call.key === 'package.trends.copy_alt.general_description',
+    )
+    expect(generalDescriptionCall).toBeTruthy()
+
+    const named = generalDescriptionCall?.named ?? {}
+    expect(named).toHaveProperty('start_date', '-')
+    expect(named).toHaveProperty('end_date', '-')
+  })
+
+  it('passes watermark, granularity, and packages_analysis into general_description', () => {
+    const translateMock = createTranslateMock()
+    const trendLineConfig = createTrendLineConfig({
+      $t: translateMock.translate,
+      granularity: 'weekly',
+      formattedDatasetValues: [
+        ['10', '40'],
+        ['40', '10'],
+      ],
+    })
+
+    createAltTextForTrendLineChart({
+      dataset: createDatasetWithTwoLines([10, 20, 30, 40], [40, 30, 20, 10]),
+      config: trendLineConfig,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    const generalDescriptionCall = translateMock.calls.find(
+      call => call.key === 'package.trends.copy_alt.general_description',
+    )
+    expect(generalDescriptionCall).toBeTruthy()
+
+    const named = generalDescriptionCall?.named ?? {}
+    expect(named).toHaveProperty('granularity')
+    expect(named).toHaveProperty('packages_analysis')
+    expect(named).toHaveProperty('watermark')
+  })
+})
+
+describe('copyAltTextForTrendLineChart', () => {
+  it('forwards createAltTextForTrendLineChart result to config.copy', async () => {
+    const copyMock = vi.fn(async () => undefined)
+    const config = createConfig({
+      copy: copyMock,
+      $t: ((key: string | number) => `t:${String(key)}`) as any,
+      formattedDates: [{ text: '2026-03-01', absoluteIndex: 0 }],
+      formattedDatasetValues: [['1', '2', '3']],
+      numberFormatter: (value: number) => `nf:${value}`,
+      granularity: 'weekly',
+    })
+
+    const dataset = createDataset()
+
+    const expected = createAltTextForTrendLineChart({
+      dataset,
+      config,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    await copyAltTextForTrendLineChart({
+      dataset,
+      config,
+    } as AltCopyArgs<TrendLineDataset, TrendLineConfig>)
+
+    expect(copyMock).toHaveBeenCalledTimes(1)
+    expect(copyMock).toHaveBeenCalledWith(expected)
+  })
+})
+
+describe('createAltTextForVersionsBarChart', () => {
+  it('handles dataset with empty bars without throwing', () => {
+    const { translate } = createTranslateMock()
+    const config = createVersionsBarConfigForTests({ $t: translate as any })
+
+    expect(() =>
+      createAltTextForVersionsBarChart({
+        dataset: { bars: [] },
+        config,
+      } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>),
+    ).not.toThrow()
+  })
+
+  it('returns empty string when dataset is null (does not translate)', () => {
+    const { translate, calls } = createTranslateMock()
+    const config = createVersionsBarConfigForTests({ $t: translate as any })
+
+    const result = createAltTextForVersionsBarChart({
+      dataset: null,
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    expect(result).toBe('')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('calls general_description with expected named params (major grouping)', () => {
+    const { translate, calls } = createTranslateMock()
+
+    const config = createVersionsBarConfigForTests({
+      $t: translate as any,
+      semverGroupingMode: 'major',
+      dateRangeLabel: 'from 19 Feb to 25 Feb, 2026',
+      datapointLabels: ['2.0.x', '3.0.x', '4.0.x'],
+      numberFormatter: (value: number) => `${value}M`,
+    })
+
+    const dataset = createVersionsBarDatasetForTests([10, 20, 30], 'nuxt')
+
+    const result = createAltTextForVersionsBarChart({
+      dataset,
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    expect(result).toBe('t:package.versions.copy_alt.general_description')
+
+    const keys = calls.map(c => c.key)
+    expect(keys).toContain('package.versions.grouping_major')
+    expect(keys).toContain('package.trends.copy_alt.watermark')
+    expect(keys).toContain('package.versions.copy_alt.general_description')
+
+    const generalCall = calls.find(c => c.key === 'package.versions.copy_alt.general_description')
+    expect(generalCall).toBeTruthy()
+
+    expect(generalCall?.named).toMatchObject({
+      package_name: 'nuxt',
+      versions_count: 3,
+      first_version: '2.0.x',
+      last_version: '4.0.x',
+      date_range_label: 'from 19 Feb to 25 Feb, 2026',
+      max_downloaded_version: '4.0.x',
+      max_version_downloads: '30M',
+    })
+
+    expect(generalCall?.named).toHaveProperty(
+      'semver_grouping_mode',
+      't:package.versions.grouping_major',
+    )
+    expect(generalCall?.named).toHaveProperty('watermark', 't:package.trends.copy_alt.watermark')
+  })
+
+  it('uses grouping_minor when semverGroupingMode is not "major"', () => {
+    const { translate, calls } = createTranslateMock()
+
+    const config = createVersionsBarConfigForTests({
+      $t: translate as any,
+      semverGroupingMode: 'minor',
+    })
+
+    createAltTextForVersionsBarChart({
+      dataset: createVersionsBarDatasetForTests([1, 2], 'pkg'),
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    const keys = calls.map(c => c.key)
+    expect(keys).toContain('package.versions.grouping_minor')
+  })
+
+  it('builds per_version_analysis in reverse order and excludes the max version', () => {
+    const { translate, calls } = createTranslateMock()
+
+    const config = createVersionsBarConfigForTests({
+      $t: translate as any,
+      datapointLabels: ['v1', 'v2', 'v3', 'v4'],
+      numberFormatter: (value: number) => `${value}M`,
+    })
+
+    createAltTextForVersionsBarChart({
+      dataset: createVersionsBarDatasetForTests([10, 20, 999, 40], 'pkg'),
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    const perVersionCalls = calls.filter(
+      c => c.key === 'package.versions.copy_alt.per_version_analysis',
+    )
+    expect(perVersionCalls).toHaveLength(3)
+
+    expect(perVersionCalls[0]?.named).toMatchObject({ version: 'v4', downloads: '40M' })
+    expect(perVersionCalls[1]?.named).toMatchObject({ version: 'v2', downloads: '20M' })
+    expect(perVersionCalls[2]?.named).toMatchObject({ version: 'v1', downloads: '10M' })
+
+    const generalCall = calls.find(c => c.key === 'package.versions.copy_alt.general_description')
+    expect(generalCall).toBeTruthy()
+
+    expect(generalCall?.named).toHaveProperty(
+      'per_version_analysis',
+      Array.from({ length: 3 }, () => 't:package.versions.copy_alt.per_version_analysis').join(
+        ', ',
+      ),
+    )
+  })
+
+  it('treats null/undefined series values as 0 for max selection and formatting', () => {
+    const { translate, calls } = createTranslateMock()
+
+    const config = createVersionsBarConfigForTests({
+      $t: translate as any,
+      datapointLabels: ['v1', 'v2', 'v3'],
+      numberFormatter: (value: number) => `${value}M`,
+    })
+
+    createAltTextForVersionsBarChart({
+      dataset: createVersionsBarDatasetForTests([null, 5, undefined], 'pkg'),
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    const generalCall = calls.find(c => c.key === 'package.versions.copy_alt.general_description')
+    expect(generalCall?.named).toMatchObject({
+      max_downloaded_version: 'v2',
+      max_version_downloads: '5M',
+    })
+  })
+})
+
+describe('copyAltTextForVersionsBarChart', () => {
+  it('forwards createAltTextForVersionsBarChart result to config.copy', async () => {
+    const copyMock = vi.fn(async () => undefined)
+
+    const config = createVersionsBarConfigForTests({
+      copy: copyMock,
+      $t: ((key: string | number) => `t:${String(key)}`) as any,
+      numberFormatter: (value: number) => `${value}M`,
+      datapointLabels: ['v1', 'v2', 'v3'],
+      dateRangeLabel: 'RANGE',
+      semverGroupingMode: 'major',
+    })
+
+    const dataset = createVersionsBarDatasetForTests([1, 2, 3], 'pkg')
+
+    const expected = createAltTextForVersionsBarChart({
+      dataset,
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    await copyAltTextForVersionsBarChart({
+      dataset,
+      config,
+    } as AltCopyArgs<VersionsBarDataset, VersionsBarConfig>)
+
+    expect(copyMock).toHaveBeenCalledTimes(1)
+    expect(copyMock).toHaveBeenCalledWith(expected)
+  })
+})
+
+describe('loadFile', () => {
+  let createElementMock: ReturnType<typeof vi.fn>
+  let clickMock: ReturnType<typeof vi.fn>
+  let removeMock: ReturnType<typeof vi.fn>
+  let originalDocument: typeof globalThis.document | undefined
+
+  beforeEach(() => {
+    clickMock = vi.fn()
+    removeMock = vi.fn()
+
+    createElementMock = vi.fn().mockReturnValue({
+      href: '',
+      download: '',
+      click: clickMock,
+      remove: removeMock,
+    })
+
+    originalDocument = globalThis.document
+
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        createElement: createElementMock,
+      },
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+
+    Object.defineProperty(globalThis, 'document', {
+      value: originalDocument,
+      configurable: true,
+      writable: true,
+    })
+  })
+
+  it('creates an anchor element and triggers a download', () => {
+    const link = 'https://npmx.dev/file.png'
+    const filename = 'file.png'
+    loadFile(link, filename)
+    expect(createElementMock).toHaveBeenCalledWith('a')
+    const anchor = createElementMock.mock.results[0]?.value as HTMLAnchorElement
+    expect(anchor.href).toBe(link)
+    expect(anchor.download).toBe(filename)
+    expect(clickMock).toHaveBeenCalledTimes(1)
+    expect(removeMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('sanitise', () => {
+  it('returns the same string when no sanitisation is needed', () => {
+    expect(sanitise('nuxt-package')).toBe('nuxt-package')
+  })
+
+  it('removes a leading @ character', () => {
+    expect(sanitise('@nuxt/ui')).toBe('nuxt-ui')
+  })
+
+  it('removes only the first leading @ character', () => {
+    expect(sanitise('@@scope/package')).toBe('@scope-package')
+  })
+
+  it('replaces forward slashes with dashes', () => {
+    expect(sanitise('scope/package/name')).toBe('scope-package-name')
+  })
+
+  it('replaces backslashes with dashes', () => {
+    expect(sanitise('scope\\package\\name')).toBe('scope-package-name')
+  })
+
+  it('replaces colon characters with dashes', () => {
+    expect(sanitise('name:with:colons')).toBe('name-with-colons')
+  })
+
+  it('replaces invalid filename characters with dashes', () => {
+    expect(sanitise('na<me>:"with"*?pipes|')).toBe('na-me---with---pipes-')
+  })
+
+  it('handles scoped package names correctly', () => {
+    expect(sanitise('@scope/package')).toBe('scope-package')
+  })
+
+  it('replaces mixed invalid characters in a single string', () => {
+    expect(sanitise('@scope/package:name*test?value<foo>|bar')).toBe(
+      'scope-package-name-test-value-foo--bar',
+    )
+  })
+
+  it('returns an empty string when given an empty string', () => {
+    expect(sanitise('')).toBe('')
+  })
+})
+
+describe('insertLineBreaks', () => {
+  it('returns an empty string when text is not a string', () => {
+    expect(insertLineBreaks(null as unknown as string)).toBe('')
+    expect(insertLineBreaks(undefined as unknown as string)).toBe('')
+    expect(insertLineBreaks(42 as unknown as string)).toBe('')
+    expect(insertLineBreaks({} as unknown as string)).toBe('')
+  })
+
+  it('returns the original text when maxCharactersPerLine is not a positive integer', () => {
+    expect(insertLineBreaks('hello world', 0)).toBe('hello world')
+    expect(insertLineBreaks('hello world', -1)).toBe('hello world')
+    expect(insertLineBreaks('hello world', 2.5)).toBe('hello world')
+    expect(insertLineBreaks('hello world', Number.NaN)).toBe('hello world')
+  })
+
+  it('returns the same text when it already fits on one line', () => {
+    expect(insertLineBreaks('hello world', 24)).toBe('hello world')
+  })
+
+  it('breaks text into multiple lines on word boundaries', () => {
+    expect(insertLineBreaks('hello world again', 11)).toBe('hello world\nagain')
+  })
+
+  it('preserves a single space between words when collapsing whitespace', () => {
+    expect(insertLineBreaks('hello     world', 24)).toBe('hello world')
+  })
+
+  it('ignores leading and trailing whitespace', () => {
+    expect(insertLineBreaks('   hello world   ', 24)).toBe('hello world')
+  })
+
+  it('handles tabs and newlines as whitespace separators', () => {
+    expect(insertLineBreaks('hello\tworld\nagain', 11)).toBe('hello world\nagain')
+  })
+
+  it('starts a new line when adding a word would exceed the limit', () => {
+    expect(insertLineBreaks('one two three', 7)).toBe('one two\nthree')
+  })
+
+  it('keeps a word on the current line when it exactly matches the limit', () => {
+    expect(insertLineBreaks('abc def', 7)).toBe('abc def')
+  })
+
+  it('splits a long token into chunks when it exceeds the limit', () => {
+    expect(insertLineBreaks('abcdefghijkl', 5)).toBe('abcde\nfghij\nkl')
+  })
+
+  it('pushes the current line before splitting a long token', () => {
+    expect(insertLineBreaks('hello abcdefghij', 5)).toBe('hello\nabcde\nfghij')
+  })
+
+  it('continues building lines after a split long token', () => {
+    expect(insertLineBreaks('abcdefghij klm nop', 5)).toBe('abcde\nfghij\nklm\nnop')
+  })
+
+  it('handles multiple consecutive long tokens', () => {
+    expect(insertLineBreaks('abcdefghijk lmnopqrs', 4)).toBe('abcd\nefgh\nijk\nlmno\npqrs')
+  })
+
+  it('returns an empty string for an empty input string', () => {
+    expect(insertLineBreaks('', 24)).toBe('')
+  })
+
+  it('returns an empty string for a whitespace-only string', () => {
+    expect(insertLineBreaks('     ', 24)).toBe('')
+    expect(insertLineBreaks('\n\t  ', 24)).toBe('')
+  })
+
+  it('uses the default maxCharactersPerLine value when omitted', () => {
+    expect(insertLineBreaks('one two three four five six')).toBe('one two three four five\nsix')
+  })
+})
+
+describe('applyEllipsis', () => {
+  it('returns an empty string when text is not a string', () => {
+    expect(applyEllipsis(null as unknown as string)).toBe('')
+    expect(applyEllipsis(undefined as unknown as string)).toBe('')
+    expect(applyEllipsis(42 as unknown as string)).toBe('')
+    expect(applyEllipsis({} as unknown as string)).toBe('')
+  })
+
+  it('returns the original text when maxLength is not a positive integer', () => {
+    expect(applyEllipsis('touching grass', 0)).toBe('touching grass')
+    expect(applyEllipsis('touching grass', -1)).toBe('touching grass')
+    expect(applyEllipsis('touching grass', 2.5)).toBe('touching grass')
+    expect(applyEllipsis('touching grass', Number.NaN)).toBe('touching grass')
+  })
+
+  it('returns the original text when its length is less than maxLength', () => {
+    expect(applyEllipsis('grass', 10)).toBe('grass')
+  })
+
+  it('returns the original text when its length is equal to maxLength', () => {
+    expect(applyEllipsis('grass', 5)).toBe('grass')
+  })
+
+  it('truncates the text and appends an ellipsis when its length exceeds maxLength', () => {
+    expect(applyEllipsis('grass touching', 5)).toBe('grass...')
+  })
+
+  it('uses the default maxLength when omitted', () => {
+    const text = 'n'.repeat(46)
+    expect(applyEllipsis(text)).toBe(`${'n'.repeat(45)}...`)
+  })
+
+  it('returns an empty string for an empty input string', () => {
+    expect(applyEllipsis('')).toBe('')
+  })
+
+  it('handles maxLength equal to 1', () => {
+    expect(applyEllipsis('grass', 1)).toBe('g...')
+  })
+
+  it('preserves whitespace within the truncated portion', () => {
+    expect(applyEllipsis('you need to touch grass', 13)).toBe('you need to t...')
   })
 })

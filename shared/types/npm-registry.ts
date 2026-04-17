@@ -47,6 +47,9 @@ export type PublishTrustLevel = 'none' | 'trustedPublisher' | 'provenance'
 export type SlimVersion = Pick<SlimPackumentVersion, 'version' | 'deprecated' | 'tags'> & {
   hasProvenance?: boolean
   trustLevel?: PublishTrustLevel
+  license?: string
+  /** Package type field — "module" indicates ESM */
+  type?: string
 }
 
 /**
@@ -128,8 +131,7 @@ export interface NpmSearchResponse {
 
 export interface NpmSearchResult {
   package: NpmSearchPackage
-  score: NpmSearchScore
-  searchScore: number
+  searchScore?: number
   /** Download counts (weekly/monthly) */
   downloads?: {
     weekly?: number
@@ -187,15 +189,6 @@ export interface NpmSearchPackage {
   publisher?: NpmSearchPublisher
   maintainers?: NpmPerson[]
   license?: string
-}
-
-export interface NpmSearchScore {
-  final: number
-  detail: {
-    quality: number
-    popularity: number
-    maintenance: number
-  }
 }
 
 /**
@@ -355,6 +348,8 @@ export interface PackageFileTree {
   path: string
   /** Node type */
   type: 'file' | 'directory'
+  /** File hash (only for files) */
+  hash?: string
   /** Node size in bytes (file size or recursive directory total) */
   size?: number
   /** Child nodes (only for directories) */
@@ -379,6 +374,7 @@ export interface PackageFileContentResponse {
   version: string
   path: string
   language: string
+  contentType: string | null
   content: string
   html: string
   lines: number
