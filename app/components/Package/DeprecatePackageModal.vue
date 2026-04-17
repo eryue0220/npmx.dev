@@ -242,7 +242,7 @@ defineExpose({ open, close })
           name="deprecate-version"
           :disabled="isSelectedVersionDeprecated"
           class="w-full"
-          size="medium"
+          size="md"
           :placeholder="$t('package.deprecation.modal.version_placeholder')"
         />
       </div>
