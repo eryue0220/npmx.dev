@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { PackageFileTree } from '../../../../shared/types'
+import type { PackageFileTree } from '#shared/types'
 import {
   createImportResolver,
   flattenFileTree,
   resolveInternalImport,
   resolveRelativeImport,
-} from '../../../../server/utils/import-resolver'
+} from '#server/utils/import-resolver'
 
 describe('flattenFileTree', () => {
   it('flattens nested trees into a file set', () => {

@@ -10,6 +10,7 @@ definePageMeta({
 
 const route = useRoute('docs')
 const router = useRouter()
+const { t } = useI18n()
 
 const parsedRoute = computed(() => {
   const segments = route.params.path?.filter(Boolean)
@@ -37,6 +38,8 @@ if (import.meta.server && packageName.value) {
 }
 
 const { data: pkg } = usePackage(packageName)
+const { versions: commandPaletteVersions, ensureLoaded: ensureCommandPaletteVersionsLoaded } =
+  useCommandPalettePackageVersions(packageName)
 
 const latestVersion = computed(() => pkg.value?.['dist-tags']?.latest ?? null)
 
@@ -68,6 +71,23 @@ watch(
 
 const resolvedVersion = computed(() => requestedVersion.value ?? latestVersion.value)
 
+const commandPalettePackageContext = computed(() => {
+  const packageData = pkg.value
+  if (!packageData) return null
+
+  return {
+    packageName: packageData.name,
+    resolvedVersion: resolvedVersion.value ?? packageData['dist-tags']?.latest ?? null,
+    latestVersion: packageData['dist-tags']?.latest ?? null,
+    versions: commandPaletteVersions.value ?? Object.keys(packageData.versions ?? {}),
+  }
+})
+
+useCommandPalettePackageContext(commandPalettePackageContext, {
+  onOpen: ensureCommandPaletteVersionsLoaded,
+})
+useCommandPalettePackageCommands(commandPalettePackageContext)
+
 const docsUrl = computed(() => {
   if (!packageName.value || !resolvedVersion.value) return null
   return `/api/registry/docs/${packageName.value}/v/${resolvedVersion.value}`
@@ -87,7 +107,7 @@ const { data: docsData, status: docsStatus } = useLazyFetch<DocsResponse>(
       html: '',
       toc: null,
       status: 'missing' as const,
-      message: 'Docs are not available for this version.',
+      message: t('package.docs.default_not_available'),
     }),
   },
 )
@@ -103,26 +123,42 @@ const versionUrlPattern = computed(
   () => `/package-docs/${pkg.value?.name || packageName.value}/v/{version}`,
 )
 
+useCommandPaletteVersionCommands(commandPalettePackageContext, versionUrlPattern)
+
 const pageTitle = computed(() => {
-  if (!packageName.value) return 'API Docs - npmx'
-  if (!resolvedVersion.value) return `${packageName.value} docs - npmx`
-  return `${packageName.value}@${resolvedVersion.value} docs - npmx`
+  if (!packageName.value) return t('package.docs.page_title')
+  if (!resolvedVersion.value) return t('package.docs.page_title_name', { name: packageName.value })
+  return t('package.docs.page_title_version', {
+    name: `${packageName.value}@${resolvedVersion.value}`,
+  })
 })
 
 useSeoMeta({
   title: () => pageTitle.value,
-  ogTitle: () => pageTitle.value,
+  ogTitle: () => t('package.docs.og_title', { name: packageName.value }),
   twitterTitle: () => pageTitle.value,
   description: () => pkg.value?.license ?? '',
   ogDescription: () => pkg.value?.license ?? '',
   twitterDescription: () => pkg.value?.license ?? '',
 })
 
-defineOgImageComponent('Default', {
-  title: () => `${pkg.value?.name ?? 'Package'} - Docs`,
-  description: () => pkg.value?.license ?? '',
-  primaryColor: '#60a5fa',
-})
+defineOgImage(
+  'Package.takumi',
+  {
+    name: () => packageName.value,
+    version: () => resolvedVersion.value,
+    variant: 'function-tree',
+  },
+  [
+    { key: 'og', alt: () => `API documentation for ${packageName.value}` },
+    {
+      key: 'whatsapp',
+      width: 800,
+      height: 800,
+      alt: () => `API documentation for ${packageName.value}`,
+    },
+  ],
+)
 
 const showLoading = computed(
   () => docsStatus.value === 'pending' || (docsStatus.value === 'idle' && docsUrl.value !== null),
@@ -156,7 +192,7 @@ const stickyStyle = computed(() => {
       >
         <div class="docs-sidebar sticky overflow-y-auto p-4">
           <h2 class="text-xs font-semibold text-fg-subtle uppercase tracking-wider mb-4">
-            Contents
+            {{ $t('package.docs.contents') }}
           </h2>
           <!-- eslint-disable vue/no-v-html -->
           <div class="toc-content" v-html="docsData.toc" />
@@ -184,7 +220,7 @@ const stickyStyle = computed(() => {
                 :to="packageRoute(packageName)"
                 class="link-subtle font-mono text-sm"
               >
-                View package
+                {{ $t('package.docs.view_package') }}
               </NuxtLink>
             </div>
           </div>

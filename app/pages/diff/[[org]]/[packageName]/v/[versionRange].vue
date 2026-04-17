@@ -28,6 +28,25 @@ const toVersion = computed(() => versionRange.value?.to ?? '')
 
 const router = useRouter()
 const { data: pkg } = usePackage(packageName)
+const { versions: commandPaletteVersions, ensureLoaded: ensureCommandPaletteVersionsLoaded } =
+  useCommandPalettePackageVersions(packageName)
+
+const commandPalettePackageContext = computed(() => {
+  const packageData = pkg.value
+  if (!packageData) return null
+
+  return {
+    packageName: packageData.name,
+    resolvedVersion: fromVersion.value || packageData['dist-tags']?.latest || null,
+    latestVersion: packageData['dist-tags']?.latest ?? null,
+    versions: commandPaletteVersions.value ?? Object.keys(packageData.versions ?? {}),
+  }
+})
+
+useCommandPalettePackageContext(commandPalettePackageContext, {
+  onOpen: ensureCommandPaletteVersionsLoaded,
+})
+useCommandPalettePackageCommands(commandPalettePackageContext)
 
 const { data: compare, status: compareStatus } = useFetch<CompareResponse>(
   () => `/api/registry/compare/${packageName.value}/v/${fromVersion.value}...${toVersion.value}`,
@@ -109,6 +128,8 @@ const toVersionUrlPattern = computed(() => {
   return normalizeRoutePath(diffRoute(packageName.value, fromVersion.value, '{version}'))
 })
 
+useCommandPaletteVersionCommands(commandPalettePackageContext, fromVersionUrlPattern)
+
 useSeoMeta({
   title: () => {
     if (fromVersion.value && toVersion.value) {
@@ -134,22 +155,30 @@ useSeoMeta({
 
     <!-- Error: invalid route -->
     <div v-if="!versionRange" class="container py-20 text-center">
-      <p class="text-fg-muted mb-4">
-        Invalid comparison URL. Use format: /diff/package/v/from...to
-      </p>
-      <NuxtLink :to="packageRoute(packageName)" class="btn">Go to package</NuxtLink>
+      <i18n-t keypath="compare.version_invalid_url_format.hint" tag="p" class="text-fg-muted mb-4">
+        <code class="font-mono text-sm"
+          >/diff/{{ packageName }}/v/{{
+            $t('compare.version_invalid_url_format.from_version')
+          }}...{{ $t('compare.version_invalid_url_format.to_version') }}</code
+        >
+      </i18n-t>
+      <NuxtLink :to="packageRoute(packageName)" class="btn">{{
+        $t('compare.version_back_to_package')
+      }}</NuxtLink>
     </div>
 
     <!-- Loading state -->
     <div v-else-if="compareStatus === 'pending'" class="container py-20 text-center">
       <div class="i-svg-spinners-ring-resize w-8 h-8 mx-auto text-fg-muted" />
-      <p class="mt-4 text-fg-muted">Comparing versions...</p>
+      <p class="mt-4 text-fg-muted">{{ $t('compare.comparing_versions_label') }}</p>
     </div>
 
     <!-- Error state -->
     <div v-else-if="compareStatus === 'error'" class="container py-20 text-center" role="alert">
-      <p class="text-fg-muted mb-4">Failed to compare versions</p>
-      <NuxtLink :to="packageRoute(packageName)" class="btn">Back to package</NuxtLink>
+      <p class="text-fg-muted mb-4">{{ $t('compare.version_error_message') }}</p>
+      <NuxtLink :to="packageRoute(packageName)" class="btn">{{
+        $t('compare.version_back_to_package')
+      }}</NuxtLink>
     </div>
 
     <!-- Comparison content -->

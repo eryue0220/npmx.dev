@@ -2,12 +2,6 @@
 import { assertValidPackageName } from '#shared/utils/npm'
 import { getDependencyCount } from '~/utils/npm/dependency-count'
 
-defineOgImageComponent('Package', {
-  name: () => packageName.value,
-  version: () => requestedVersion.value ?? '',
-  primaryColor: '#60a5fa',
-})
-
 const readmeHeader = useTemplateRef('readmeHeader')
 const isReadmeHeaderPinned = shallowRef(false)
 const packageHeaderHeight = usePackageHeaderHeight()
@@ -39,6 +33,24 @@ const { packageName, requestedVersion } = usePackageRoute()
 const { data: resolvedVersion, status: resolvedStatus } = await useResolvedVersion(
   packageName,
   requestedVersion,
+)
+
+defineOgImage(
+  'Package.takumi',
+  {
+    name: () => packageName.value,
+    version: () => requestedVersion.value,
+    variant: 'download-chart',
+  },
+  [
+    { key: 'og', alt: () => `npm package ${packageName.value} download chart and stats` },
+    {
+      key: 'whatsapp',
+      width: 800,
+      height: 800,
+      alt: () => `npm package ${packageName.value} download chart and stats`,
+    },
+  ],
 )
 
 if (import.meta.server) {
@@ -96,24 +108,20 @@ const {
 )
 
 //copy README file as Markdown
-const { copied: copiedReadme, copy: copyReadme } = useClipboard({
-  source: () => '',
-  copiedDuring: 2000,
-})
+const { copied: copiedReadme, copy: copyReadme } = useClipboardAsync(
+  async () => {
+    await fetchReadmeMarkdown()
+    return readmeMarkdownData.value?.markdown ?? ''
+  },
+  {
+    copiedDuring: 2000,
+  },
+)
 
 function prefetchReadmeMarkdown() {
   if (readmeMarkdownStatus.value === 'idle') {
     fetchReadmeMarkdown()
   }
-}
-
-async function copyReadmeHandler() {
-  await fetchReadmeMarkdown()
-
-  const markdown = readmeMarkdownData.value?.markdown
-  if (!markdown) return
-
-  await copyReadme(markdown)
 }
 
 // Track active TOC item based on scroll position
@@ -200,6 +208,26 @@ const {
 } = usePackage(packageName, () => resolvedVersion.value ?? requestedVersion.value)
 
 const { diff: sizeDiff } = useInstallSizeDiff(packageName, resolvedVersion, pkg, installSize)
+const { versions: commandPaletteVersions, ensureLoaded: ensureCommandPaletteVersionsLoaded } =
+  useCommandPalettePackageVersions(packageName)
+
+const commandPalettePackageContext = computed(() => {
+  const packageData = pkg.value
+  if (!packageData) return null
+
+  return {
+    packageName: packageData.name,
+    resolvedVersion: resolvedVersion.value ?? packageData['dist-tags']?.latest ?? null,
+    latestVersion: packageData['dist-tags']?.latest ?? null,
+    versions: commandPaletteVersions.value ?? Object.keys(packageData.versions ?? {}),
+    tarballUrl: packageData.requestedVersion?.dist.tarball ?? null,
+  }
+})
+
+useCommandPalettePackageContext(commandPalettePackageContext, {
+  onOpen: ensureCommandPaletteVersionsLoaded,
+})
+useCommandPalettePackageCommands(commandPalettePackageContext)
 
 // Detect two hydration scenarios where the external _payload.json is missing:
 //
@@ -257,7 +285,6 @@ const versionSecurityMetadata = computed<PackageVersionInfo[]>(() => {
 // Process package description
 const pkgDescription = useMarkdown(() => ({
   text: pkg.value?.description ?? '',
-  packageName: pkg.value?.name,
 }))
 
 // Fetch dependency analysis (lazy, client-side)
@@ -460,6 +487,8 @@ const versionUrlPattern = computed(
   () => `/package/${pkg.value?.name || packageName.value}/v/{version}`,
 )
 
+useCommandPaletteVersionCommands(commandPalettePackageContext, versionUrlPattern)
+
 const dependencyCount = computed(() => getDependencyCount(displayVersion.value))
 
 const numberFormatter = useNumberFormatter()
@@ -527,7 +556,6 @@ const showSkeleton = shallowRef(false)
         :latest-version="latestVersion"
         :provenance-data="provenanceData"
         :provenance-status="provenanceStatus"
-        :class="$style.areaHeader"
         page="main"
         :version-url-pattern="versionUrlPattern"
       />
@@ -624,7 +652,7 @@ const showSkeleton = shallowRef(false)
                 <ButtonGroup v-if="dependencyCount > 0" class="ms-auto">
                   <LinkBase
                     variant="button-secondary"
-                    size="small"
+                    size="sm"
                     :to="`https://npmgraph.js.org/?q=${pkg.name}${resolvedVersion ? `@${resolvedVersion}` : ''}`"
                     :title="$t('package.stats.view_dependency_graph')"
                     classicon="i-lucide:network -rotate-90"
@@ -634,7 +662,7 @@ const showSkeleton = shallowRef(false)
 
                   <LinkBase
                     variant="button-secondary"
-                    size="small"
+                    size="sm"
                     :to="`https://node-modules.dev/grid/depth#install=${pkg.name}${resolvedVersion ? `@${resolvedVersion}` : ''}`"
                     :title="$t('package.stats.inspect_dependency_tree')"
                     classicon="i-lucide:table"
@@ -771,8 +799,15 @@ const showSkeleton = shallowRef(false)
                 {{ $t('package.get_started.title') }}
               </LinkBase>
             </h2>
-            <!-- Package manager dropdown -->
-            <PackageManagerSelect />
+            <!-- Package manager dropdown + Download button -->
+            <div class="flex items-center gap-2">
+              <PackageDownloadButton
+                v-if="displayVersion"
+                :package-name="pkg.name"
+                :version="displayVersion"
+              />
+              <PackageManagerSelect />
+            </div>
           </div>
           <div>
             <div
@@ -863,7 +898,9 @@ const showSkeleton = shallowRef(false)
             </div>
             <TerminalInstall
               :package-name="pkg.name"
-              :requested-version="resolvedVersion"
+              :requested-version="
+                requestedVersion && requestedVersion !== 'latest' ? resolvedVersion : null
+              "
               :install-version-override="installVersionOverride"
               :jsr-info="jsrInfo"
               :dev-dependency-suggestion="packageAnalysis?.devDependencySuggestion"
@@ -894,90 +931,6 @@ const showSkeleton = shallowRef(false)
             />
           </ClientOnly>
         </div>
-
-        <!-- README -->
-        <section id="readme" class="min-w-0 scroll-mt-20" :class="$style.areaReadme">
-          <div
-            ref="readmeHeader"
-            class="flex [@media(min-height:800px)]:sticky z-10 flex-wrap items-center justify-between mb-3 py-2 -mx-1 px-2 transition-shadow duration-200"
-            :class="{ 'bg-bg border-border border-b': isReadmeHeaderPinned }"
-            :style="{ top: readmeStickyTop }"
-          >
-            <h2 id="readme-heading" class="group text-fg-subtle uppercase font-medium">
-              <LinkBase to="#readme">
-                {{ $t('package.readme.title') }}
-              </LinkBase>
-            </h2>
-            <div class="flex gap-2">
-              <!-- Copy readme as Markdown button -->
-              <TooltipApp
-                v-if="readmeData?.mdExists"
-                :text="$t('package.readme.copy_as_markdown')"
-                position="bottom"
-              >
-                <ButtonBase
-                  @mouseenter="prefetchReadmeMarkdown"
-                  @focus="prefetchReadmeMarkdown"
-                  @click="copyReadmeHandler()"
-                  :aria-pressed="copiedReadme"
-                  :aria-label="
-                    copiedReadme ? $t('common.copied') : $t('package.readme.copy_as_markdown')
-                  "
-                  :classicon="copiedReadme ? 'i-lucide:check' : 'i-simple-icons:markdown'"
-                >
-                  {{ copiedReadme ? $t('common.copied') : $t('common.copy') }}
-                </ButtonBase>
-              </TooltipApp>
-              <ReadmeTocDropdown
-                v-if="readmeData?.toc && readmeData.toc.length > 1"
-                :toc="readmeData.toc"
-                :active-id="activeTocId"
-              />
-            </div>
-          </div>
-
-          <!-- eslint-disable vue/no-v-html -- HTML is sanitized server-side -->
-          <Readme v-if="readmeData?.html" :html="readmeData.html" />
-          <p v-else class="text-fg-muted italic">
-            {{ $t('package.readme.no_readme') }}
-            <a
-              v-if="repositoryUrl"
-              :href="repositoryUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="link text-fg underline underline-offset-4 decoration-fg-subtle hover:(decoration-fg text-fg) transition-colors duration-200"
-            >
-              {{ viewOnGitProvider }}</a
-            >
-          </p>
-
-          <section
-            v-if="hasProvenance(displayVersion) && isMounted"
-            id="provenance"
-            class="scroll-mt-20"
-          >
-            <div
-              v-if="provenanceStatus === 'pending'"
-              class="mt-8 flex items-center gap-2 text-fg-subtle text-sm"
-            >
-              <span class="i-svg-spinners:ring-resize w-4 h-4" aria-hidden="true" />
-              <span>{{ $t('package.provenance_section.title') }}…</span>
-            </div>
-            <PackageProvenanceSection
-              v-else-if="provenanceData"
-              :details="provenanceData"
-              class="mt-8"
-            />
-            <!-- Error state: provenance exists but details failed to load -->
-            <div
-              v-else-if="provenanceStatus === 'error'"
-              class="mt-8 flex items-center gap-2 text-fg-subtle text-sm"
-            >
-              <span class="i-lucide:circle-alert w-4 h-4" aria-hidden="true" />
-              <span>{{ $t('package.provenance_section.error_loading') }}</span>
-            </div>
-          </section>
-        </section>
 
         <PackageSidebar :class="$style.areaSidebar">
           <div class="flex flex-col gap-4 sm:gap-6 xl:pt-4">
@@ -1050,6 +1003,90 @@ const showSkeleton = shallowRef(false)
             <PackageMaintainers :package-name="pkg.name" :maintainers="pkg.maintainers" />
           </div>
         </PackageSidebar>
+
+        <!-- README -->
+        <section id="readme" class="min-w-0 scroll-mt-20" :class="$style.areaReadme">
+          <div
+            ref="readmeHeader"
+            class="flex [@media(min-height:800px)]:sticky z-10 flex-wrap items-center justify-between mb-3 py-2 -mx-1 px-2 transition-shadow duration-200"
+            :class="{ 'bg-bg border-border border-b': isReadmeHeaderPinned }"
+            :style="{ top: readmeStickyTop }"
+          >
+            <h2 id="readme-heading" class="group text-fg-subtle uppercase font-medium">
+              <LinkBase to="#readme">
+                {{ $t('package.readme.title') }}
+              </LinkBase>
+            </h2>
+            <div class="flex gap-2">
+              <!-- Copy readme as Markdown button -->
+              <TooltipApp
+                v-if="readmeData?.mdExists"
+                :text="$t('package.readme.copy_as_markdown')"
+                position="bottom"
+              >
+                <ButtonBase
+                  @mouseenter="prefetchReadmeMarkdown"
+                  @focus="prefetchReadmeMarkdown"
+                  @click="copyReadme"
+                  :aria-pressed="copiedReadme"
+                  :aria-label="
+                    copiedReadme ? $t('common.copied') : $t('package.readme.copy_as_markdown')
+                  "
+                  :classicon="copiedReadme ? 'i-lucide:check' : 'i-simple-icons:markdown'"
+                >
+                  {{ copiedReadme ? $t('common.copied') : $t('common.copy') }}
+                </ButtonBase>
+              </TooltipApp>
+              <ReadmeTocDropdown
+                v-if="readmeData?.toc && readmeData.toc.length > 1"
+                :toc="readmeData.toc"
+                :active-id="activeTocId"
+              />
+            </div>
+          </div>
+
+          <!-- eslint-disable vue/no-v-html -- HTML is sanitized server-side -->
+          <Readme v-if="readmeData?.html" :html="readmeData.html" />
+          <p v-else class="text-fg-muted italic">
+            {{ $t('package.readme.no_readme') }}
+            <a
+              v-if="repositoryUrl"
+              :href="repositoryUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link text-fg underline underline-offset-4 decoration-fg-subtle hover:(decoration-fg text-fg) transition-colors duration-200"
+            >
+              {{ viewOnGitProvider }}</a
+            >
+          </p>
+
+          <section
+            v-if="hasProvenance(displayVersion) && isMounted"
+            id="provenance"
+            class="scroll-mt-20"
+          >
+            <div
+              v-if="provenanceStatus === 'pending'"
+              class="mt-8 flex items-center gap-2 text-fg-subtle text-sm"
+            >
+              <span class="i-svg-spinners:ring-resize w-4 h-4" aria-hidden="true" />
+              <span>{{ $t('package.provenance_section.title') }}…</span>
+            </div>
+            <PackageProvenanceSection
+              v-else-if="provenanceData"
+              :details="provenanceData"
+              class="mt-8"
+            />
+            <!-- Error state: provenance exists but details failed to load -->
+            <div
+              v-else-if="provenanceStatus === 'error'"
+              class="mt-8 flex items-center gap-2 text-fg-subtle text-sm"
+            >
+              <span class="i-lucide:circle-alert w-4 h-4" aria-hidden="true" />
+              <span>{{ $t('package.provenance_section.error_loading') }}</span>
+            </div>
+          </section>
+        </section>
       </article>
     </template>
 
@@ -1095,10 +1132,10 @@ const showSkeleton = shallowRef(false)
     grid-template-columns: 2fr 1fr;
     grid-template-areas:
       'details details'
-      'install install'
-      'vulns   vulns'
+      'install sidebar'
+      'vulns   sidebar'
       'readme  sidebar';
-    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
   }
 }
 
@@ -1111,6 +1148,7 @@ const showSkeleton = shallowRef(false)
       'install sidebar'
       'vulns   sidebar'
       'readme  sidebar';
+    grid-template-rows: auto auto auto 1fr;
   }
 }
 
