@@ -131,10 +131,11 @@ function handleKeydown(event: KeyboardEvent) {
       :leave-to-class="prefersReducedMotion ? '' : 'opacity-0'"
     >
       <ul
-        v-if="isOpen"
+        v-show="isOpen"
         :id="listboxId"
         ref="listRef"
         role="listbox"
+        :aria-hidden="!isOpen"
         :aria-activedescendant="
           highlightedIndex >= 0
             ? `${listboxId}-${packageManagers[highlightedIndex]?.id}`
