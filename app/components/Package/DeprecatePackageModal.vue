@@ -73,18 +73,24 @@ async function handleDeprecate() {
       ? `npm deprecate ${parsed.output.pkg}@${parsed.output.version} "${escapedMessage}"`
       : `npm deprecate ${parsed.output.pkg} "${escapedMessage}"`
 
-    const operation = await addOperation({
+    const operationParams: Record<string, string> = {
+      pkg: parsed.output.pkg,
+      message: parsed.output.message,
+    }
+    if (parsed.output.version) {
+      operationParams.version = parsed.output.version
+    }
+
+    const newOperation: NewOperation = {
       type: 'package:deprecate',
-      params: {
-        pkg: parsed.output.pkg,
-        message: parsed.output.message,
-        ...(parsed.output.version && { version: parsed.output.version }),
-      },
+      params: operationParams,
       description: parsed.output.version
         ? `Deprecate ${parsed.output.pkg}@${parsed.output.version}`
         : `Deprecate ${parsed.output.pkg}`,
       command,
-    } as NewOperation)
+    }
+
+    const operation = await addOperation(newOperation)
 
     if (!operation) {
       throw new Error('Failed to create operation')
