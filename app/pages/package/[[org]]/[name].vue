@@ -1031,16 +1031,17 @@ const showSkeleton = shallowRef(false)
             <!-- Deprecation (when connected as package owner; hidden when current version is already deprecated) -->
             <div
               v-if="isConnected && resolvedVersion && isPackageOwner && !isCurrentVersionDeprecated"
-              class="space-y-1"
+              class="pl-7"
             >
-              <button
+              <ButtonBase
                 type="button"
-                class="flex items-center justify-center gap-1.5 w-full px-3 py-1.5 bg-bg-subtle rounded text-sm font-mono text-red-400 hover:text-red-500 transition-colors"
+                variant="secondary"
+                class="w-full text-red"
                 @click="deprecateModal?.open()"
+                classicon="i-lucide:triangle-alert text-red"
               >
-                <span class="i-carbon-warning-alt w-4 h-4 shrink-0" aria-hidden="true" />
                 {{ $t('package.deprecation.action') }}
-              </button>
+              </ButtonBase>
             </div>
           </div>
         </PackageSidebar>
