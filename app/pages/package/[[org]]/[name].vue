@@ -1031,7 +1031,7 @@ const showSkeleton = shallowRef(false)
             <!-- Deprecation (when connected as package owner; hidden when current version is already deprecated) -->
             <div
               v-if="isConnected && resolvedVersion && isPackageOwner && !isCurrentVersionDeprecated"
-              class="pl-7"
+              class="ps-7"
             >
               <ButtonBase
                 type="button"
