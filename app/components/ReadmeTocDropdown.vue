@@ -196,11 +196,10 @@ watch(
       :leave-to-class="prefersReducedMotion ? '' : 'opacity-0'"
     >
       <div
-        v-show="isOpen"
+        v-if="isOpen"
         :id="listboxId"
         ref="listRef"
         role="listbox"
-        :aria-hidden="!isOpen"
         :aria-activedescendant="
           highlightedIndex >= 0 && toc[highlightedIndex]?.id
             ? `${listboxId}-${toc[highlightedIndex]?.id}`
