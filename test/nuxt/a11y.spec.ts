@@ -1504,6 +1504,18 @@ describe('component accessibility audits', () => {
       const results = await runAxe(component)
       expect(results.violations).toEqual([])
     })
+
+    it('should have no accessibility violations with import-link markup', async () => {
+      const component = await mountSuspended(CodeViewer, {
+        props: {
+          html: '<pre><code><span class="line"><a href="/package-code/vite/v/1.0.0/index" class="import-link">vite</a></span></code></pre>',
+          lines: 1,
+          selectedLines: null,
+        },
+      })
+      const results = await runAxe(component)
+      expect(results.violations).toEqual([])
+    })
   })
 
   describe('CodeDirectoryListing', () => {

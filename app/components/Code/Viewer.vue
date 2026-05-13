@@ -37,7 +37,6 @@ function onLineClick(lineNum: number, event: MouseEvent) {
 function updateLineHighlighting() {
   if (!codeRef.value) return
 
-  // Lines are inside pre > code > .line
   const lines = codeRef.value.querySelectorAll('code > .line')
   lines.forEach((line, index) => {
     const lineNum = index + 1

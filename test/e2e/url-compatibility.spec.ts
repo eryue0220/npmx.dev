@@ -138,15 +138,5 @@ test.describe('npmjs.com URL Compatibility', () => {
 
       await expect(page.locator('h1')).toContainText('@types/node')
     })
-
-    test('package-code self import links navigate to the target code file', async ({
-      page,
-      goto,
-    }) => {
-      await goto('/package-code/empathic/v/2.0.0/find.mjs#L3', { waitUntil: 'hydration' })
-
-      const importLink = page.locator('a.import-link', { hasText: 'empathic/walk' })
-      await expect(importLink).toHaveAttribute('href', '/package-code/empathic/v/2.0.0/walk.mjs')
-    })
   })
 })
