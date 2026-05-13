@@ -28,7 +28,8 @@ async function mountCodeViewer(
 }
 
 function getRenderedCodeLines(wrapper: Awaited<ReturnType<typeof mountCodeViewer>>) {
-  return Array.from(wrapper.element.querySelectorAll<HTMLElement>('code > .line'))
+  const root = wrapper.element as HTMLElement
+  return Array.from(root.querySelectorAll('code > .line')) as HTMLElement[]
 }
 
 describe('CodeViewer', () => {
@@ -104,9 +105,7 @@ describe('CodeViewer', () => {
 
     try {
       const router = useRouter()
-      const pushSpy = vi
-        .spyOn(router, 'push')
-        .mockImplementation(async () => router.currentRoute.value)
+      const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => Promise.resolve())
 
       await wrapper.setProps({ html })
       await nextTick()
@@ -131,9 +130,7 @@ describe('CodeViewer', () => {
 
   it('ignores import-link clicks without an href', async () => {
     const router = useRouter()
-    const pushSpy = vi
-      .spyOn(router, 'push')
-      .mockImplementation(async () => router.currentRoute.value)
+    const pushSpy = vi.spyOn(router, 'push').mockImplementation(() => Promise.resolve())
 
     const wrapper = await mountSuspended(CodeViewer, {
       attachTo: document.body,
