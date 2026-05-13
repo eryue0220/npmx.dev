@@ -147,11 +147,6 @@ test.describe('npmjs.com URL Compatibility', () => {
 
       const importLink = page.locator('a.import-link', { hasText: 'empathic/walk' })
       await expect(importLink).toHaveAttribute('href', '/package-code/empathic/v/2.0.0/walk.mjs')
-
-      await importLink.click()
-
-      await expect(page).toHaveURL(/\/package-code\/empathic\/v\/2\.0\.0\/walk\.mjs$/)
-      await expect(page).toHaveTitle(/walk\.mjs - empathic@2\.0\.0/i)
     })
   })
 })

@@ -3,6 +3,7 @@ import type { PackageFileTree } from '#shared/types'
 import {
   createImportResolver,
   flattenFileTree,
+  resolveAliasToDir,
   resolvePackageSelfImport,
   resolveInternalImport,
   resolveRelativeImport,
@@ -49,6 +50,26 @@ describe('flattenFileTree', () => {
 
     expect(files.has('index.js')).toBe(true)
     expect(files.has('cli.js')).toBe(true)
+  })
+})
+
+describe('resolveAliasToDir', () => {
+  it('returns the deepest matching alias directory', () => {
+    expect(resolveAliasToDir('#app', './src/app/generated/app/index.js')).toBe(
+      './src/app/generated/app',
+    )
+  })
+
+  it('returns the full path for root aliases', () => {
+    expect(resolveAliasToDir('#', './src/app/index.js')).toBe('./src/app/index.js')
+  })
+
+  it('returns null when the alias does not match a path segment', () => {
+    expect(resolveAliasToDir('#components', './src/app/index.js')).toBeNull()
+  })
+
+  it('returns null for unsupported alias prefixes', () => {
+    expect(resolveAliasToDir('components', './src/components/index.js')).toBeNull()
   })
 })
 
@@ -308,9 +329,40 @@ describe('resolveInternalImport', () => {
 
     expect(resolved?.path).toBe('dist/app/components/button.js')
   })
+
+  it('resolves guessed alias targets to directory index files', () => {
+    const files = new Set<string>(['dist/app/components/index.js'])
+
+    const resolved = resolveInternalImport(
+      '#app/components',
+      'dist/index.js',
+      {
+        '#app': './dist/app/index.js',
+      },
+      files,
+    )
+
+    expect(resolved?.path).toBe('dist/app/components/index.js')
+  })
 })
 
 describe('resolvePackageSelfImport', () => {
+  it('resolves the package root using the dot export', () => {
+    const files = new Set<string>(['index.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'empathic',
+      'empathic',
+      {
+        '.': { import: './index.mjs' },
+      },
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved?.path).toBe('index.mjs')
+  })
+
   it('resolves package self subpath imports using exports', () => {
     const files = new Set<string>(['find.mjs', 'walk.mjs'])
 
@@ -325,6 +377,22 @@ describe('resolvePackageSelfImport', () => {
     )
 
     expect(resolved?.path).toBe('walk.mjs')
+  })
+
+  it('resolves package self subpath imports to directory index files', () => {
+    const files = new Set<string>(['walk/index.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'empathic/walk',
+      'empathic',
+      {
+        './walk': { import: './walk' },
+      },
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved?.path).toBe('walk/index.mjs')
   })
 
   it('returns null when the specifier is not for the current package', () => {
@@ -355,5 +423,21 @@ describe('resolvePackageSelfImport', () => {
     )
 
     expect(resolved?.path).toBe('walk.mjs')
+  })
+
+  it('returns null when neither exports nor fallback resolution can find a file', () => {
+    const files = new Set<string>(['find.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'empathic/missing',
+      'empathic',
+      {
+        './missing': { import: './missing' },
+      },
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved).toBeNull()
   })
 })

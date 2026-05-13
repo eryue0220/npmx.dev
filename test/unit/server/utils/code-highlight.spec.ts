@@ -77,4 +77,33 @@ describe('linkifyModuleSpecifiers', () => {
       '<a href="/package-code/empathic/v/2.0.0/walk.mjs" class="import-link">"empathic/walk"</a>',
     )
   })
+
+  it('falls back to dependency links when the file-aware resolver cannot resolve a specifier', () => {
+    const html =
+      '<span class="line">' +
+      '<span style="color:#F97583">import</span>' +
+      '<span style="color:#9ECBFF"> "vue"</span>' +
+      '</span>'
+
+    const result = linkifyModuleSpecifiers(html, {
+      dependencies,
+      resolveRelative: () => null,
+    })
+
+    expect(result).toContain('<a href="/package-code/vue/v/3.4.0" class="import-link">"vue"</a>')
+  })
+
+  it('linkifies side-effect imports even when import token spacing varies', () => {
+    const html =
+      '<span class="line">' +
+      '<span style="color:#F97583"> import </span>' +
+      '<span style="color:#9ECBFF"> "@unocss/webpack" </span>' +
+      '</span>'
+
+    const result = linkifyModuleSpecifiers(html, { dependencies })
+
+    expect(result).toContain(
+      '<a href="/package-code/@unocss/webpack/v/0.65.3" class="import-link">"@unocss/webpack"</a>',
+    )
+  })
 })
