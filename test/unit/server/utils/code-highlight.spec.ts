@@ -58,4 +58,23 @@ describe('linkifyModuleSpecifiers', () => {
       '<a href="/package-code/empathic/v/2.0.0/walk.mjs" class="import-link">"empathic/walk"</a>',
     )
   })
+
+  it('linkifies when spacing around "from" varies across tokens', () => {
+    const html =
+      '<span class="line">' +
+      '<span style="color:#F97583">import</span>' +
+      '<span style="color:#E1E4E8"> * as walk </span>' +
+      '<span style="color:#F97583">from </span>' +
+      '<span style="color:#9ECBFF">"empathic/walk"</span>' +
+      '</span>'
+
+    const result = linkifyModuleSpecifiers(html, {
+      resolveRelative: specifier =>
+        specifier.includes('empathic/walk') ? '/package-code/empathic/v/2.0.0/walk.mjs' : null,
+    })
+
+    expect(result).toContain(
+      '<a href="/package-code/empathic/v/2.0.0/walk.mjs" class="import-link">"empathic/walk"</a>',
+    )
+  })
 })
