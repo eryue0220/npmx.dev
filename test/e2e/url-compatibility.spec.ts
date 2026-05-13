@@ -145,7 +145,7 @@ test.describe('npmjs.com URL Compatibility', () => {
     }) => {
       await goto('/package-code/empathic/v/2.0.0/find.mjs#L3', { waitUntil: 'hydration' })
 
-      const importLink = page.locator('a.import-link', { hasText: '"empathic/walk"' })
+      const importLink = page.locator('a.import-link', { hasText: 'empathic/walk' })
       await expect(importLink).toHaveAttribute('href', '/package-code/empathic/v/2.0.0/walk.mjs')
 
       await importLink.click()
