@@ -174,6 +174,19 @@ export type InternalImportTarget = string | { default?: string; import?: string 
 
 export type InternalImportsMap = Record<string, InternalImportTarget>
 
+export type PackageExportTarget =
+  | string
+  | {
+      default?: string
+      import?: string
+      require?: string
+      types?: string
+    }
+  | null
+  | undefined
+
+export type PackageExportsMap = Record<string, PackageExportTarget>
+
 /**
  * Resolve a relative import specifier to an actual file path.
  *
@@ -384,6 +397,107 @@ export function resolveInternalImport(
   return null
 }
 
+function normalizePackageSubpath(specifier: string, packageName: string): string | null {
+  const cleanSpecifier = specifier.replace(/^['"]|['"]$/g, '').trim()
+
+  if (cleanSpecifier === packageName) {
+    return '.'
+  }
+
+  if (!cleanSpecifier.startsWith(`${packageName}/`)) {
+    return null
+  }
+
+  return `.${cleanSpecifier.slice(packageName.length)}`
+}
+
+function normalizePackageExportTarget(target: PackageExportTarget): string | null {
+  if (typeof target === 'string') {
+    return target
+  }
+
+  if (target && typeof target === 'object') {
+    if (typeof target.import === 'string') {
+      return target.import
+    }
+
+    if (typeof target.default === 'string') {
+      return target.default
+    }
+
+    if (typeof target.require === 'string') {
+      return target.require
+    }
+
+    if (typeof target.types === 'string') {
+      return target.types
+    }
+  }
+
+  return null
+}
+
+export function resolvePackageSelfImport(
+  specifier: string,
+  packageName: string,
+  exportsMap: PackageExportsMap | undefined,
+  currentFile: string,
+  files: FileSet,
+): ResolvedImport | null {
+  const exportKey = normalizePackageSubpath(specifier, packageName)
+  if (!exportKey) {
+    return null
+  }
+
+  const resolvePath = (path: string): ResolvedImport | null => {
+    if (!path || path.startsWith('..')) {
+      return null
+    }
+
+    if (files.has(path)) {
+      return { path }
+    }
+
+    for (const extensions of getExtensionPriority(currentFile)) {
+      for (const ext of extensions) {
+        const candidate = `${path}${ext}`
+        if (files.has(candidate)) {
+          return { path: candidate }
+        }
+      }
+    }
+
+    for (const indexFile of getIndexExtensions(currentFile)) {
+      const candidate = `${path}/${indexFile}`
+      if (files.has(candidate)) {
+        return { path: candidate }
+      }
+    }
+
+    return null
+  }
+
+  const target = exportsMap ? normalizePackageExportTarget(exportsMap[exportKey]) : null
+  if (target?.startsWith('./')) {
+    const resolvedFromExports = resolvePath(normalizePath(target))
+    if (resolvedFromExports) {
+      return resolvedFromExports
+    }
+  }
+
+  // Fallback for packages whose exports could not be fetched at runtime:
+  // map `pkg/subpath` to `subpath` and apply normal extension/index resolution.
+  if (exportKey !== '.') {
+    const fallbackPath = normalizePath(exportKey.slice(2))
+    const resolvedFallback = resolvePath(fallbackPath)
+    if (resolvedFallback) {
+      return resolvedFallback
+    }
+  }
+
+  return null
+}
+
 /**
  * Create a resolver function bound to a specific file tree and current file.
  */
@@ -393,11 +507,24 @@ export function createImportResolver(
   packageName: string,
   version: string,
   internalImports?: InternalImportsMap,
+  exportsMap?: PackageExportsMap,
 ): (specifier: string) => string | null {
   return (specifier: string) => {
     const relativeResolved = resolveRelativeImport(specifier, currentFile, files)
     const internalResolved = resolveInternalImport(specifier, currentFile, internalImports, files)
-    const resolved = relativeResolved != null ? relativeResolved : internalResolved
+    const selfResolved = resolvePackageSelfImport(
+      specifier,
+      packageName,
+      exportsMap,
+      currentFile,
+      files,
+    )
+    const resolved =
+      relativeResolved != null
+        ? relativeResolved
+        : internalResolved != null
+          ? internalResolved
+          : selfResolved
 
     if (resolved) {
       return `/package-code/${packageName}/v/${version}/${resolved.path}`

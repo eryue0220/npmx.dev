@@ -3,6 +3,7 @@ import type { PackageFileTree } from '#shared/types'
 import {
   createImportResolver,
   flattenFileTree,
+  resolvePackageSelfImport,
   resolveInternalImport,
   resolveRelativeImport,
 } from '#server/utils/import-resolver'
@@ -189,6 +190,17 @@ describe('createImportResolver', () => {
 
     expect(url).toBe('/package-code/nuxt/v/4.3.1/dist/app/nuxt.js')
   })
+
+  it('resolves self package subpath imports to code browser URLs', () => {
+    const files = new Set<string>(['find.mjs', 'walk.mjs'])
+    const resolver = createImportResolver(files, 'find.mjs', 'empathic', '2.0.0', undefined, {
+      './walk': { import: './walk.mjs' },
+    })
+
+    const url = resolver('empathic/walk')
+
+    expect(url).toBe('/package-code/empathic/v/2.0.0/walk.mjs')
+  })
 })
 
 describe('resolveInternalImport', () => {
@@ -295,5 +307,53 @@ describe('resolveInternalImport', () => {
     )
 
     expect(resolved?.path).toBe('dist/app/components/button.js')
+  })
+})
+
+describe('resolvePackageSelfImport', () => {
+  it('resolves package self subpath imports using exports', () => {
+    const files = new Set<string>(['find.mjs', 'walk.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'empathic/walk',
+      'empathic',
+      {
+        './walk': { import: './walk.mjs' },
+      },
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved?.path).toBe('walk.mjs')
+  })
+
+  it('returns null when the specifier is not for the current package', () => {
+    const files = new Set<string>(['walk.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'other-package/walk',
+      'empathic',
+      {
+        './walk': { import: './walk.mjs' },
+      },
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved).toBeNull()
+  })
+
+  it('falls back to file-tree based self subpath resolution when exports are unavailable', () => {
+    const files = new Set<string>(['find.mjs', 'walk.mjs'])
+
+    const resolved = resolvePackageSelfImport(
+      'empathic/walk',
+      'empathic',
+      undefined,
+      'find.mjs',
+      files,
+    )
+
+    expect(resolved?.path).toBe('walk.mjs')
   })
 })

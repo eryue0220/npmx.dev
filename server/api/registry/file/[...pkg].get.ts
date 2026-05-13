@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import type { InternalImportsMap } from '#server/utils/import-resolver'
+import type { InternalImportsMap, PackageExportsMap } from '#server/utils/import-resolver'
 import { PackageFileQuerySchema } from '#shared/schemas/package'
 import type { ReadmeResponse } from '#shared/types/readme'
 import {
@@ -29,6 +29,7 @@ interface PackageJson {
   peerDependencies?: Record<string, string>
   optionalDependencies?: Record<string, string>
   imports?: InternalImportsMap
+  exports?: PackageExportsMap
 }
 
 /**
@@ -169,6 +170,7 @@ export default defineCachedEventHandler(
             packageName,
             version,
             pkgJson?.imports,
+            pkgJson?.exports,
           )
         }
       }

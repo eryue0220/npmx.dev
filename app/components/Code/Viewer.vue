@@ -10,6 +10,7 @@ const emit = defineEmits<{
 }>()
 
 const codeRef = useTemplateRef('codeRef')
+const router = useRouter()
 
 // Generate line numbers array
 const lineNumbers = computed(() => {
@@ -58,7 +59,8 @@ watch(
   { immediate: true },
 )
 
-// Use Nuxt's `navigateTo` for the rendered import links
+// Route rendered import links through vue-router so native event listeners
+// still trigger in-app navigation for v-html content.
 function handleImportLinkNavigate() {
   if (!codeRef.value) return
 
@@ -70,7 +72,7 @@ function handleImportLinkNavigate() {
       const href = anchor.getAttribute('href')
       if (href) {
         event.preventDefault()
-        navigateTo(href)
+        void router.push(href)
       }
     })
   })

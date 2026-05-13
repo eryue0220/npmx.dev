@@ -171,18 +171,12 @@ export function linkifyModuleSpecifiers(html: string, options?: LinkifyOptions):
   const { dependencies, resolveRelative } = options ?? {}
 
   const getHref = (moduleSpecifier: string): string | null => {
-    const cleanSpec = moduleSpecifier.replace(/^['"]|['"]$/g, '').trim()
-
-    // Try relative import resolution first
-    if (cleanSpec.startsWith('.') && resolveRelative) {
-      return resolveRelative(moduleSpecifier)
-    }
-
-    if (
-      (cleanSpec.startsWith('#') || cleanSpec.startsWith('~') || cleanSpec.startsWith('@/')) &&
-      resolveRelative
-    ) {
-      return resolveRelative(moduleSpecifier)
+    // First try file-aware resolution (relative imports, aliases, and self-package subpaths).
+    if (resolveRelative) {
+      const resolved = resolveRelative(moduleSpecifier)
+      if (resolved) {
+        return resolved
+      }
     }
 
     // Not a relative import - check if it's an npm package
