@@ -150,7 +150,8 @@
       "code": "Code",
       "diff": "Diff",
       "compare": "Comparer ce paquet",
-      "download": "Télécharger le tarball"
+      "download": "Télécharger le tarball",
+      "changelog": "Changements"
     },
     "package_actions": {
       "copy_run": "Copier la commande d'exécution"
@@ -282,7 +283,9 @@
       "black": "Noir"
     },
     "keyboard_shortcuts_enabled": "Activer les raccourcis clavier",
-    "keyboard_shortcuts_enabled_description": "Les raccourcis clavier peuvent être désactivés s'ils entrent en conflit avec d'autres raccourcis du navigateur ou du système"
+    "keyboard_shortcuts_enabled_description": "Les raccourcis clavier peuvent être désactivés s'ils entrent en conflit avec d'autres raccourcis du navigateur ou du système",
+    "enable_changelog_autoscroll": "Scroller automatiquement à la version voulue",
+    "enable_changelog_autoscroll_description": "Scroller automatiquement à — ou près — de la version voulue dans la page des changements"
   },
   "i18n": {
     "missing_keys": "{count} traduction manquante | {count} traductions manquantes",
@@ -314,6 +317,7 @@
     "warnings": "Avertissements :",
     "go_back_home": "Retour à l'accueil",
     "per_week": "/ semaine",
+    "per_week_short": "/sem",
     "vanity_downloads_hint": "Métrique de vanité : aucun paquet affiché | Métrique de vanité : pour le paquet affiché | Métrique de vanité : somme des {count} paquets affichés",
     "sort": {
       "name": "nom",
@@ -389,7 +393,6 @@
       "none": "Ce paquet a été signalé comme n'étant plus nécessaire, et sa fonctionnalité est probablement disponible nativement dans tous les moteurs.",
       "learn_more": "En savoir plus",
       "learn_more_above": "En savoir plus ci-dessus.",
-      "mdn": "MDN",
       "community": "communauté",
       "consider_no_dep": "+ Envisager sans dépendance ?"
     },
@@ -436,11 +439,15 @@
       "fund": "donner",
       "compare": "comparer",
       "timeline": "historique",
-      "compare_this_package": "comparer ce paquet"
+      "compare_this_package": "comparer ce paquet",
+      "changelog": "changements"
     },
     "likes": {
       "like": "Liker ce paquet",
-      "unlike": "Retirer le like"
+      "unlike": "Retirer le like",
+      "top_rank_tooltip": "Ce paquet figure parmi les 10 ayant le plus de likes sur npmx (n°{rank})",
+      "top_rank_label": "n°{rank}",
+      "top_rank_link_label": "Voir le classement des likes. Ce paquet est classé n°{rank}."
     },
     "docs": {
       "contents": "Sommaire",
@@ -576,7 +583,19 @@
       "trusted_publisher_added": "Vérification ajoutée",
       "trusted_publisher_removed": "Vérification enlevée",
       "provenance_added": "Preuve de provenance ajoutée",
-      "provenance_removed": "Preuve de provenance enlevée"
+      "provenance_removed": "Preuve de provenance enlevée",
+      "chart": {
+        "tab_aria_label": "Sélection de métrique",
+        "base_scale": "positionner les ordonnées à zéro",
+        "zoom": "zoom",
+        "reset_minimap": "Réinitialiser la mini-carte",
+        "ordered_versions": "stable uniquement",
+        "copy_alt": {
+          "key_changes": "Principaux changements: {version_events}",
+          "version_events": "version {version}: {events}",
+          "general_description": "Graphique en ligne montrant la métrique {metric} pour le paquet {package}, depuis la version {first} à {last}. La valeur de la métrique {metric} pour la version {first} est {first_value}, et {last_value} pour la version {last} ({overall_progress_percentage}% dans l'ensemble). {key_changes} {watermark}."
+        }
+      }
     },
     "dependencies": {
       "title": "Dépendances ({count})",
@@ -778,6 +797,16 @@
     "download": {
       "button": "Télécharger",
       "tarball": "Télécharger le tarball au format .tar.gz"
+    }
+  },
+  "leaderboard": {
+    "likes": {
+      "title": "Classement des likes",
+      "description": "Les 10 paquets les plus likés sur npmx en ce moment.",
+      "rank": "Rang",
+      "likes": "Likes",
+      "unavailable_title": "Pas encore de classement des likes",
+      "unavailable_description": "Nous n'avons pas encore de classement des likes à afficher."
     }
   },
   "connector": {
@@ -1679,6 +1708,17 @@
       "message": "L'accessibilité compte beaucoup pour nous, et nous serions ravis que vous partagiez cette vision. Lors de l'utilisation des médias mentionnés, assurez-vous qu'il y a suffisamment de contraste avec l'arrière-plan, et ne descendez pas en dessous de 24 px. Si vous avez besoin d'autres ressources ou d'informations supplémentaires sur le projet, n'hésitez pas à nous contacter à {link}.",
       "discord_link_text": "chat.npmx.dev"
     }
+  },
+  "changelog": {
+    "pre_release": "Pré-version",
+    "draft": "Brouillon",
+    "no_logs": "Désolé, ce paquet ne publie pas de changements ou le format de ses changements n'est pas pris en charge.",
+    "error": {
+      "p1": "Désolé, les changements de {package} n'ont pas pu être chargés",
+      "p2": "Veuillez réessayer plus tard ou {viewon}"
+    },
+    "rate_limit_ungh": "Désolé, la limite de requêtes à l'API GitHub a été atteinte, réessayez plus tard",
+    "version_unavailable": "La version demandée n'est pas disponible."
   },
   "alt_logo_kawaii": "Une version mignonne, arrondie et colorée du logo npmx."
 }
