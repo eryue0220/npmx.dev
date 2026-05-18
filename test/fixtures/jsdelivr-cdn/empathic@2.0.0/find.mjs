@@ -8,10 +8,9 @@ import * as walk from 'empathic/walk'
  * @returns The absolute path to the item, if found.
  */
 export function up(name, options) {
-  let dir, tmp
-  let start = (options && options.cwd) || ''
-  for (dir of walk.up(start, options)) {
-    tmp = join(dir, name)
+  const start = (options && options.cwd) || ''
+  for (const dir of walk.up(start, options)) {
+    const tmp = join(dir, name)
     if (existsSync(tmp)) return tmp
   }
 }
@@ -25,14 +24,11 @@ export function up(name, options) {
  * @returns The absolute path of the first item found, if any.
  */
 export function any(names, options) {
-  let dir,
-    start = (options && options.cwd) || ''
-  let j = 0,
-    len = names.length,
-    tmp
-  for (dir of walk.up(start, options)) {
-    for (j = 0; j < len; j++) {
-      tmp = join(dir, names[j])
+  const start = (options && options.cwd) || ''
+  const len = names.length
+  for (const dir of walk.up(start, options)) {
+    for (let j = 0; j < len; j++) {
+      const tmp = join(dir, names[j])
       if (existsSync(tmp)) return tmp
     }
   }
@@ -48,11 +44,10 @@ export function any(names, options) {
  * @returns The absolute path to the file, if found.
  */
 export function file(name, options) {
-  let dir, tmp
-  let start = (options && options.cwd) || ''
-  for (dir of walk.up(start, options)) {
+  const start = (options && options.cwd) || ''
+  for (const dir of walk.up(start, options)) {
     try {
-      tmp = join(dir, name)
+      const tmp = join(dir, name)
       if (statSync(tmp).isFile()) return tmp
     } catch {}
   }
@@ -68,11 +63,10 @@ export function file(name, options) {
  * @returns The absolute path to the file, if found.
  */
 export function dir(name, options) {
-  let dir, tmp
-  let start = (options && options.cwd) || ''
-  for (dir of walk.up(start, options)) {
+  const start = (options && options.cwd) || ''
+  for (const dir of walk.up(start, options)) {
     try {
-      tmp = join(dir, name)
+      const tmp = join(dir, name)
       if (statSync(tmp).isDirectory()) return tmp
     } catch {}
   }

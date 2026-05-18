@@ -119,8 +119,7 @@ describe('linkifyModuleSpecifiers', () => {
   })
 
   it('does not link Node built-ins or package specifiers when they are not dependencies', () => {
-    const htmlFrom =
-      '<span style="color:#F97583">from</span>' + '<span style="color:#9ECBFF"> "fs"</span>'
+    const htmlFrom = `<span style="color:#F97583">from</span><span style="color:#9ECBFF"> "fs"</span>`
     const htmlSide =
       '<span style="color:#F97583"> import </span>' +
       '<span style="color:#9ECBFF"> "node:path" </span>'
